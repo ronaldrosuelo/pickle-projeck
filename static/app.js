@@ -251,9 +251,12 @@ function renderDeck(queue, perGame, courts) {
     currentDeckPlayers = pickDeckGroup(checkedIn, perGame);
   }
 
-  const nextPlayers = currentDeckPlayers
-    .map(cp => checkedIn.find(q => q.id === cp.id))
-    .filter(Boolean);
+  // Map deck IDs to current queue players to get fresh data (win/loss records, etc)
+  // but ONLY if they're still in the queue — otherwise keep original
+  const nextPlayers = currentDeckPlayers.map(cp => {
+    const updated = queue.find(q => q.id === cp.id);
+    return updated || cp;  // Use updated if in queue, else use original cached data
+  });
 
   // Split preview teams respecting partner locks
   function previewSplit(players) {
