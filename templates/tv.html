@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pickle Flow – Live Display</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+
+    body {
+      display: flex; flex-direction: column;
+      padding: 0.6rem; gap: 0.5rem;
+      background-color: var(--beige-mid);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%23c0b8a8'/%3E%3Crect x='0' y='0' width='1' height='1' fill='%23b8b0a0' opacity='0.5'/%3E%3Crect x='2' y='2' width='1' height='1' fill='%23b8b0a0' opacity='0.5'/%3E%3C/svg%3E");
+      color: var(--ink); font: 1rem/1.4 var(--font);
+    }
+
+    /* ── Top bar ── */
+    .tv-topbar {
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0.5rem 1.2rem;
+      background: linear-gradient(180deg, var(--maroon-mid) 0%, var(--maroon) 50%, var(--maroon-dark) 100%);
+      border: 1px solid var(--maroon-dark); border-radius: 12px;
+      box-shadow: 0 1px 0 rgba(255,120,100,0.25) inset, 0 -2px 0 rgba(0,0,0,0.35) inset, 0 4px 10px rgba(0,0,0,0.3);
+      position: relative; overflow: hidden;
+    }
+    .tv-topbar::before {
+      content: ""; position: absolute; inset: 4px;
+      border: 1px dashed rgba(245,220,190,0.22); border-radius: 9px; pointer-events: none;
+    }
+    .tv-topbar h1 {
+      margin: 0; font: 800 1.4rem/1 var(--font-display);
+      letter-spacing: 0.01em; color: var(--beige-light);
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+
+    /* ── Main body ── */
+    .tv-body {
+      flex: 1; min-height: 0;
+      display: grid; grid-template-columns: 1fr 210px; gap: 0.5rem;
+    }
+    .tv-courts {
+      display: grid; grid-template-columns: 1fr 1fr;
+      grid-auto-rows: 1fr; gap: 0.5rem; min-height: 0;
+    }
+
+    /* ── Court card ── */
+    .tv-court {
+      border-radius: 10px; padding: 0.4rem 0.5rem;
+      display: flex; flex-direction: column; gap: 0.25rem;
+      position: relative; overflow: hidden; min-height: 0;
+      background: linear-gradient(180deg, #b8b0a0 0%, #c8bfb0 100%);
+      border: 1px solid var(--beige-dark);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.18) inset, 0 1px 0 rgba(255,255,255,0.4);
+    }
+    .tv-court.busy {
+      background: linear-gradient(160deg, var(--maroon-mid) 0%, var(--maroon) 55%, var(--maroon-dark) 100%);
+      border: 1px solid var(--maroon-dark);
+      box-shadow: 0 1px 0 rgba(255,100,80,0.2) inset, 0 -2px 0 rgba(0,0,0,0.3) inset, 0 3px 8px rgba(0,0,0,0.25);
+    }
+    .tv-court > * { position: relative; z-index: 1; }
+    .tv-court-title {
+      font: 700 0.6rem/1 var(--font-display); letter-spacing: 0.12em;
+      text-transform: uppercase; flex-shrink: 0;
+    }
+    .tv-court .tv-court-title  { color: var(--ink-muted); text-shadow: 0 1px 0 rgba(255,255,255,0.6); }
+    .tv-court.busy .tv-court-title { color: rgba(245,225,185,0.55); text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+    .tv-court-free {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      font-style: italic; color: var(--ink-muted); font-size: 0.85rem;
+    }
+    .tv-teams {
+      flex: 1; min-height: 0;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem;
+    }
+    .tv-team {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: space-evenly; padding: 0.3rem 0.2rem;
+      background: rgba(0,0,0,0.18); border: 1px solid rgba(0,0,0,0.18);
+      border-radius: 7px; overflow: hidden; min-height: 0;
+    }
+    .tv-team-label {
+      font: 700 0.58rem/1 var(--font-display); letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--beige); flex-shrink: 0;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    }
+    .tv-player {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 0.15rem; width: 100%; flex: 1; min-height: 0;
+    }
+    .tv-player img, .tv-player .tv-ph {
+      width: var(--av, 2rem); height: var(--av, 2rem);
+      border-radius: 50%; flex-shrink: 0; object-fit: cover; display: block;
+      border: 2px solid rgba(245,225,185,0.55); box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+    }
+    .tv-player .tv-ph {
+      background: rgba(0,0,0,0.3);
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .tv-player .tv-ph svg { width: 56%; height: 56%; fill: rgba(245,225,185,0.85); }
+    .tv-player-name {
+      font: 700 var(--fn, 0.78rem)/1.1 var(--font-display); color: var(--beige-light);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5); text-align: center;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      width: 100%; padding: 0 0.15rem;
+    }
+
+    /* ── Sidebar ── */
+    .tv-sidebar {
+      display: flex; flex-direction: column; overflow: hidden; border-radius: 12px;
+      background: linear-gradient(180deg, var(--beige-light) 0%, var(--beige) 60%, var(--beige-dark) 100%);
+      border: 1px solid var(--beige-dark);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 -1px 0 rgba(0,0,0,0.12) inset, 0 3px 7px rgba(0,0,0,0.16);
+    }
+    .tv-sidebar-title, .tv-queue-title {
+      font: 700 0.65rem/1 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--ink-muted); padding: 0.45rem 0.65rem 0.35rem;
+      border-bottom: 1px solid var(--beige-dark); flex-shrink: 0;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+    }
+    .tv-queue-title { border-top: 1px solid var(--beige-dark); padding: 0.35rem 0.65rem; }
+    .tv-standings { flex: 1; overflow-y: auto; }
+    .tv-standings table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .tv-standings th {
+      position: sticky; top: 0;
+      background: linear-gradient(180deg, var(--beige-light), var(--beige));
+      font: 700 0.62rem/1 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--ink-muted); padding: 0.3rem 0.45rem;
+      border-bottom: 1px solid var(--beige-dark); text-align: left;
+    }
+    .tv-standings td { padding: 0.3rem 0.45rem; border-bottom: 1px solid var(--beige-dark); color: var(--ink); overflow-wrap: anywhere; }
+    .tv-standings tr:last-child td { border-bottom: none; }
+    .tv-standings .name-col { font-weight: 600; }
+    .rank-1 .name-col { color: var(--maroon); }
+    .rank-2 .name-col { color: var(--ink-soft); }
+    .rank-3 .name-col { color: var(--leather); }
+    .tv-queue { list-style: none; margin: 0; padding: 0.25rem 0.45rem; overflow-y: auto; max-height: 32%; flex-shrink: 0; }
+    .tv-queue li {
+      display: flex; align-items: center; gap: 0.35rem;
+      padding: 0.18rem 0.2rem; font-size: 0.8rem; color: var(--ink);
+      border-bottom: 1px solid var(--beige-dark);
+    }
+    .tv-queue li:last-child { border-bottom: none; }
+    .tv-queue .spot {
+      width: 1.2rem; height: 1.2rem; border-radius: 50%;
+      background: linear-gradient(180deg, var(--maroon-mid), var(--maroon-dark));
+      border: 1px solid var(--maroon-dark); display: grid; place-items: center;
+      font: 700 0.62rem/1 var(--font-display); flex-shrink: 0; color: var(--beige-light);
+    }
+    .tv-queue img, .tv-queue .tv-qph {
+      width: 1.35rem; height: 1.35rem; border-radius: 50%;
+      object-fit: cover; flex-shrink: 0; border: 1px solid var(--beige-dark);
+    }
+    .tv-queue .tv-qph {
+      background: var(--maroon-dark);
+      display: flex; align-items: center; justify-content: center;
+      font: 700 0.55rem var(--font-display); color: var(--beige-light);
+    }
+
+    /* ── Full-screen Now Playing splash ──────────────────────────────────── */
+    /* Uses visibility+opacity so it never collapses out of the stacking context */
+    #popup-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(160deg, var(--maroon-mid) 0%, var(--maroon) 55%, var(--maroon-dark) 100%);
+      visibility: hidden; opacity: 0;
+      transition: opacity 0.35s ease, visibility 0s linear 0.35s;
+    }
+    #popup-overlay.show {
+      visibility: visible; opacity: 1;
+      transition: opacity 0.35s ease, visibility 0s linear 0s;
+    }
+    #popup {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 2rem 3rem; position: relative;
+    }
+    #popup::before {
+      content: ""; position: absolute; inset: 1rem;
+      border: 2px dashed rgba(245,220,190,0.18); border-radius: 20px; pointer-events: none;
+    }
+    #popup-court {
+      font: 700 1.1rem/1 var(--font-display); letter-spacing: 0.22em; text-transform: uppercase;
+      color: rgba(245,225,185,0.55); margin-bottom: 0.4rem;
+    }
+    #popup-title {
+      font: 800 3.2rem/1 var(--font-display); letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--beige-light); margin-bottom: 2.5rem;
+      text-shadow: 0 2px 20px rgba(0,0,0,0.5);
+    }
+    #popup-teams {
+      display: grid; grid-template-columns: 1fr auto 1fr;
+      align-items: stretch; gap: 2rem;
+      width: 100%; max-width: 1100px;
+    }
+    .popup-team {
+      display: flex; flex-direction: column; align-items: center; gap: 1.4rem;
+      background: rgba(0,0,0,0.22); border: 1px solid rgba(245,225,185,0.15);
+      border-radius: 18px; padding: 1.8rem 1.5rem;
+    }
+    .popup-team-label {
+      font: 800 0.9rem/1 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--beige); text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+    .popup-player {
+      display: flex; flex-direction: column; align-items: center; gap: 0.75rem;
+    }
+    .popup-player img, .popup-player .popup-ph {
+      width: clamp(5rem, 10vh, 9rem); height: clamp(5rem, 10vh, 9rem);
+      border-radius: 50%; object-fit: cover;
+      border: 3px solid rgba(245,225,185,0.6);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.55);
+    }
+    .popup-player .popup-ph {
+      background: rgba(0,0,0,0.35);
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .popup-player .popup-ph svg { width: 55%; height: 55%; fill: rgba(245,225,185,0.85); }
+    .popup-player-name {
+      font: 800 1.7rem/1.15 var(--font-display); color: var(--beige-light);
+      text-shadow: 0 2px 8px rgba(0,0,0,0.55); text-align: center; overflow-wrap: anywhere;
+    }
+    #popup-vs {
+      display: flex; align-items: center; justify-content: center;
+      font: 900 4.5rem/1 var(--font-display); color: rgba(245,225,185,0.25);
+      text-shadow: 0 2px 8px rgba(0,0,0,0.4); user-select: none;
+    }
+    #popup-bar-wrap {
+      position: absolute; bottom: 1.5rem; left: 3rem; right: 3rem;
+      height: 5px; background: rgba(0,0,0,0.3); border-radius: 3px; overflow: hidden;
+    }
+    #popup-bar {
+      height: 100%; width: 100%; border-radius: 3px; transform-origin: left;
+      background: linear-gradient(90deg, var(--beige-light), var(--beige));
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #popup-overlay { transition: none; }
+    }
+
+    /* ── Podium button in sidebar ── */
+    #podium-btn {
+      width: 100%; padding: 0.45rem 0;
+      font: 800 0.78rem/1 var(--font-display); letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--beige-light);
+      background: linear-gradient(180deg, var(--maroon-mid), var(--maroon-dark));
+      border: 1px solid var(--maroon-dark); border-radius: 8px; cursor: pointer;
+      box-shadow: 0 1px 0 rgba(255,120,100,0.25) inset, 0 2px 6px rgba(0,0,0,0.25);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+      transition: background 0.15s;
+    }
+    #podium-btn:hover { background: linear-gradient(180deg, #9a0030, var(--maroon-mid)); }
+
+    /* ── Podium full-screen overlay ── */
+    #podium-overlay {
+      position: fixed; inset: 0; z-index: 9998;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #1a0008 0%, #3a0012 50%, #1a0008 100%);
+      visibility: hidden; opacity: 0;
+      transition: opacity 0.4s ease, visibility 0s linear 0.4s;
+    }
+    #podium-overlay.show {
+      visibility: visible; opacity: 1;
+      transition: opacity 0.4s ease, visibility 0s linear 0s;
+    }
+    #podium-inner {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 1.5rem 2rem; position: relative;
+    }
+    /* Subtle texture overlay */
+    #podium-inner::before {
+      content: ""; position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(180,40,60,0.18) 0%, transparent 70%);
+    }
+    #podium-header { text-align: center; margin-bottom: 2rem; position: relative; z-index: 1; }
+    #podium-title-top {
+      font: 900 3.5rem/1 var(--font-display); letter-spacing: 0.04em;
+      color: var(--beige-light); text-shadow: 0 3px 20px rgba(0,0,0,0.6);
+      margin-bottom: 0.35rem;
+    }
+    #podium-subtitle {
+      font: 700 0.9rem/1 var(--font-display); letter-spacing: 0.3em; text-transform: uppercase;
+      color: rgba(245,225,185,0.45); text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    }
+
+    /* Stage: 2nd | 1st | 3rd */
+    #podium-stage {
+      display: flex; align-items: flex-end; justify-content: center;
+      gap: 1.2rem; position: relative; z-index: 1;
+      width: 100%; max-width: 900px;
+    }
+
+    /* Each slot: avatar+name on top, block on bottom */
+    .podium-slot {
+      display: flex; flex-direction: column; align-items: center; gap: 0;
+      flex: 1; max-width: 260px;
+    }
+
+    .podium-avatar-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      margin-bottom: 0.7rem; position: relative;
+    }
+    .podium-medal {
+      font-size: 2rem; line-height: 1; margin-bottom: 0.35rem;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+    }
+    .podium-avatar {
+      border-radius: 50%; overflow: hidden;
+      border: 4px solid rgba(245,225,185,0.45);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6), 0 0 0 2px rgba(245,225,185,0.12);
+      background: rgba(0,0,0,0.3);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    /* 1st place bigger avatar */
+    #podium-1st .podium-avatar { width: clamp(6rem,12vh,11rem); height: clamp(6rem,12vh,11rem); }
+    #podium-2nd .podium-avatar,
+    #podium-3rd .podium-avatar { width: clamp(4.5rem,9vh,8.5rem); height: clamp(4.5rem,9vh,8.5rem); }
+    /* Gold ring for 1st */
+    .podium-avatar-gold {
+      border-color: #f0c040 !important;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.6), 0 0 0 3px rgba(240,192,64,0.35), 0 0 28px rgba(240,192,64,0.25) !important;
+    }
+    .podium-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .podium-avatar svg { width: 52%; height: 52%; fill: rgba(245,225,185,0.8); }
+
+    .podium-name {
+      font: 800 1.35rem/1.15 var(--font-display); color: var(--beige-light);
+      text-align: center; text-shadow: 0 2px 8px rgba(0,0,0,0.55);
+      margin-bottom: 0.3rem; overflow-wrap: anywhere; padding: 0 0.3rem;
+    }
+    #podium-1st .podium-name { font-size: 1.6rem; }
+    .podium-pts {
+      font: 700 1rem/1 var(--font-display); color: rgba(245,225,185,0.6);
+      text-shadow: 0 1px 4px rgba(0,0,0,0.4); margin-bottom: 0.7rem;
+    }
+    #podium-1st .podium-pts { color: #f0c040; font-size: 1.1rem; }
+
+    /* Podium blocks */
+    .podium-block {
+      width: 100%; border-radius: 12px 12px 0 0;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+    }
+    .podium-block-1 {
+      height: clamp(7rem, 15vh, 13rem);
+      background: linear-gradient(180deg, #c8a020 0%, #a07010 50%, #805808 100%);
+      border: 1px solid #a07010;
+      box-shadow: 0 1px 0 rgba(255,220,80,0.4) inset, 0 -2px 0 rgba(0,0,0,0.4) inset;
+    }
+    .podium-block-2 {
+      height: clamp(5rem, 11vh, 9rem);
+      background: linear-gradient(180deg, #b0b8c0 0%, #8090a0 50%, #607080 100%);
+      border: 1px solid #8090a0;
+      box-shadow: 0 1px 0 rgba(220,230,240,0.4) inset, 0 -2px 0 rgba(0,0,0,0.4) inset;
+    }
+    .podium-block-3 {
+      height: clamp(3.5rem, 8vh, 7rem);
+      background: linear-gradient(180deg, #c07040 0%, #904828 50%, #703418 100%);
+      border: 1px solid #904828;
+      box-shadow: 0 1px 0 rgba(220,160,100,0.4) inset, 0 -2px 0 rgba(0,0,0,0.4) inset;
+    }
+    /* Stitch line on blocks */
+    .podium-block::before {
+      content: ""; position: absolute; inset: 5px;
+      border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px 8px 0 0;
+      pointer-events: none;
+    }
+    .podium-rank-num {
+      font: 900 1.8rem/1 var(--font-display); color: rgba(255,255,255,0.75);
+      text-shadow: 0 2px 6px rgba(0,0,0,0.5); letter-spacing: 0.02em;
+      position: relative; z-index: 1;
+    }
+    .podium-rank-num sup { font-size: 0.65em; vertical-align: super; }
+
+    /* Close button */
+    #podium-close {
+      position: absolute; top: 1.2rem; right: 1.5rem; z-index: 2;
+      font: 700 0.78rem/1 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase;
+      color: rgba(245,225,185,0.6); cursor: pointer;
+      background: rgba(0,0,0,0.3); border: 1px solid rgba(245,225,185,0.2);
+      border-radius: 8px; padding: 0.4rem 0.9rem;
+      transition: color 0.15s, background 0.15s;
+    }
+    #podium-close:hover { color: var(--beige-light); background: rgba(0,0,0,0.5); }
+  </style>
+</head>
+<body>
+
+  <!-- Full-screen popup — OUTSIDE body flow, z-index 9999 -->
+  <div id="popup-overlay">
+    <div id="popup">
+      <div id="popup-court">Court 1</div>
+      <div id="popup-title">Now Playing</div>
+      <div id="popup-teams">
+        <div class="popup-team" id="popup-team1-wrap">
+          <div class="popup-team-label">Team 1</div>
+          <div id="popup-team1"></div>
+        </div>
+        <div id="popup-vs">VS</div>
+        <div class="popup-team" id="popup-team2-wrap">
+          <div class="popup-team-label">Team 2</div>
+          <div id="popup-team2"></div>
+        </div>
+      </div>
+      <div id="popup-bar-wrap"><div id="popup-bar"></div></div>
+    </div>
+  </div>
+
+  <!-- Full-screen podium overlay -->
+  <div id="podium-overlay">
+    <div id="podium-inner">
+      <div id="podium-header">
+        <div id="podium-title-top">🏆 Top Players</div>
+        <div id="podium-subtitle">Leaderboard</div>
+      </div>
+      <div id="podium-stage">
+        <!-- 2nd place -->
+        <div class="podium-slot" id="podium-2nd">
+          <div class="podium-avatar-wrap">
+            <div class="podium-medal">🥈</div>
+            <div class="podium-avatar" id="podium-avatar-2"></div>
+          </div>
+          <div class="podium-name" id="podium-name-2"></div>
+          <div class="podium-pts" id="podium-pts-2"></div>
+          <div class="podium-block podium-block-2">
+            <span class="podium-rank-num">2<sup>nd</sup></span>
+          </div>
+        </div>
+        <!-- 1st place -->
+        <div class="podium-slot" id="podium-1st">
+          <div class="podium-avatar-wrap">
+            <div class="podium-medal">🥇</div>
+            <div class="podium-avatar podium-avatar-gold" id="podium-avatar-1"></div>
+          </div>
+          <div class="podium-name" id="podium-name-1"></div>
+          <div class="podium-pts" id="podium-pts-1"></div>
+          <div class="podium-block podium-block-1">
+            <span class="podium-rank-num">1<sup>st</sup></span>
+          </div>
+        </div>
+        <!-- 3rd place -->
+        <div class="podium-slot" id="podium-3rd">
+          <div class="podium-avatar-wrap">
+            <div class="podium-medal">🥉</div>
+            <div class="podium-avatar" id="podium-avatar-3"></div>
+          </div>
+          <div class="podium-name" id="podium-name-3"></div>
+          <div class="podium-pts" id="podium-pts-3"></div>
+          <div class="podium-block podium-block-3">
+            <span class="podium-rank-num">3<sup>rd</sup></span>
+          </div>
+        </div>
+      </div>
+      <button id="podium-close">✕ Close</button>
+    </div>
+  </div>
+
+  <div class="tv-topbar">
+    <h1>Pickle Flow – Live Display</h1>
+  </div>
+
+  <div class="tv-body">
+    <div class="tv-courts" id="courts-container"></div>
+    <aside class="tv-sidebar">
+      <div class="tv-sidebar-title">Standings</div>
+      <div class="tv-standings">
+        <table>
+          <thead><tr><th>#</th><th>Name</th><th>W</th><th>L</th><th>Pts</th></tr></thead>
+          <tbody>
+            {% if results %}
+              {% for p in results %}
+              <tr class="{% if loop.index == 1 %}rank-1{% elif loop.index == 2 %}rank-2{% elif loop.index == 3 %}rank-3{% endif %}">
+                <td>{% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}</td>
+                <td class="name-col">{{ p.name }}</td>
+                <td>{{ p.w }}</td><td>{{ p.l }}</td>
+                <td style="font-weight:700;color:{% if p.pts > 0 %}var(--maroon){% elif p.pts < 0 %}var(--ink-muted){% else %}var(--ink){% endif %}">
+                  {% if p.pts > 0 %}+{{ p.pts }}{% else %}{{ p.pts }}{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="5" style="text-align:center;color:var(--ink-muted);padding:0.65rem">No games yet.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <div class="tv-queue-title">Waiting</div>
+      <ol class="tv-queue" id="queue-list"></ol>
+      <div style="padding:0.5rem 0.65rem; flex-shrink:0;">
+        <button id="podium-btn" onclick="showPodium()">🏆 Top 3</button>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    /* Standings data injected from server — sorted by pts desc */
+    const STANDINGS_FROM_SERVER = [
+      {% if results %}
+        {% for p in results %}
+        { "name": "{{ p.name }}", "w": {{ p.w }}, "l": {{ p.l }}, "pts": {{ p.pts }} }{% if not loop.last %},{% endif %}
+        {% endfor %}
+      {% endif %}
+    ];
+
+    /* ────────────────────────────────────────────────────────────────────────
+       State
+    ──────────────────────────────────────────────────────────────────────── */
+    let prevCourts = null;
+    let popupTimer = null;
+    let popupId    = 0;
+    let soundUnlocked = false;
+    let podiumData = STANDINGS_FROM_SERVER.slice(); // live-updated by refresh
+
+    /* ── Unlock audio on first user interaction ── */
+    function unlockSound() {
+      if (soundUnlocked) return;
+      try {
+        const u = new SpeechSynthesisUtterance(''); u.volume = 0;
+        window.speechSynthesis.speak(u);
+      } catch(e) {}
+      soundUnlocked = true;
+    }
+    document.addEventListener('click',   unlockSound, { once: true });
+    document.addEventListener('keydown', unlockSound, { once: true });
+    document.addEventListener('touchstart', unlockSound, { once: true });
+
+    /* ── Preload voices ── */
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
+
+    /* ── Speech engine ──
+       Single keepalive + token so stale callbacks never fire.
+    ── */
+    let _ttsKeepalive = null;
+    let _ttsTok = 0;
+
+    function _stopKeepalive() {
+      if (_ttsKeepalive) { clearInterval(_ttsKeepalive); _ttsKeepalive = null; }
+    }
+    function _startKeepalive() {
+      _stopKeepalive();
+      _ttsKeepalive = setInterval(() => {
+        if (window.speechSynthesis.speaking) {
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        }
+      }, 5000);
+    }
+
+    function speak(text, onDone) {
+      if (!soundUnlocked || !('speechSynthesis' in window)) return;
+      const ss = window.speechSynthesis;
+      const voices = ss.getVoices();
+      const saved  = localStorage.getItem('pickleVoice');
+      const voice  = (saved && voices.find(v => v.name === saved))
+                  || voices.find(v => v.lang.startsWith('en') && v.name.includes('Google'))
+                  || voices.find(v => v.lang.startsWith('en'))
+                  || null;
+      const tok = ++_ttsTok;
+
+      function mkU(t, cb) {
+        const u = new SpeechSynthesisUtterance(t);
+        u.rate = 0.88; u.pitch = 1.0; u.volume = 1.0;
+        if (voice) u.voice = voice;
+        if (cb) u.onend = () => { if (_ttsTok === tok) cb(); };
+        return u;
+      }
+
+      ss.cancel();
+      const second = mkU(text, () => { _stopKeepalive(); if (onDone) onDone(); });
+      const first  = mkU(text, () => { setTimeout(() => ss.speak(second), 120); });
+      setTimeout(() => {
+        if (_ttsTok !== tok) return;
+        _startKeepalive();
+        ss.speak(first);
+      }, 60);
+    }
+
+    /* ── SVG avatar placeholder ── */
+    const DEFAULT_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
+
+    function makeAvatar(p, cls) {
+      if (p.avatar) {
+        const img = document.createElement('img');
+        img.src = p.avatar; img.alt = ''; img.loading = 'lazy';
+        img.onerror = function() {
+          const ph = document.createElement('div');
+          ph.className = cls; ph.innerHTML = DEFAULT_SVG;
+          this.parentNode.replaceChild(ph, this);
+        };
+        return img;
+      }
+      const ph = document.createElement('div');
+      ph.className = cls; ph.innerHTML = DEFAULT_SVG;
+      return ph;
+    }
+
+    function playerEl(p) {
+      const w = document.createElement('div'); w.className = 'tv-player';
+      w.appendChild(makeAvatar(p, 'tv-ph'));
+      const n = document.createElement('span'); n.className = 'tv-player-name'; n.textContent = p.name;
+      w.appendChild(n); return w;
+    }
+
+    function popupPlayerEl(p) {
+      const w = document.createElement('div'); w.className = 'popup-player';
+      w.appendChild(makeAvatar(p, 'popup-ph'));
+      const n = document.createElement('span'); n.className = 'popup-player-name'; n.textContent = p.name;
+      w.appendChild(n); return w;
+    }
+
+    /* ── Progress bar (rAF, fixed 14s) ── */
+    function animateBar() {
+      const bar = document.getElementById('popup-bar');
+      bar.style.transform = 'scaleX(1)';
+      let start = null;
+      function step(ts) {
+        if (start === null) start = ts;
+        const p = Math.min((ts - start) / 14000, 1);
+        bar.style.transform = `scaleX(${1 - p})`;
+        if (p < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    /* ── Court size vars ── */
+    function courtSizeVars(n) {
+      const rows = Math.ceil(n / 2);
+      return `--av:${Math.max(4, Math.round(22/rows))}vh; --fn:${Math.max(0.55, 1.05-(rows-1)*0.13).toFixed(2)}rem;`;
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       showPopup — the core function
+    ══════════════════════════════════════════════════════════════════════ */
+    function showPopup(courtIdx, players) {
+      const myId = ++popupId;
+      if (popupTimer) { clearTimeout(popupTimer); popupTimer = null; }
+
+      /* Fill in player names + avatars */
+      document.getElementById('popup-court').textContent = `Court ${courtIdx + 1}`;
+      const t1 = document.getElementById('popup-team1');
+      const t2 = document.getElementById('popup-team2');
+      t1.innerHTML = ''; t2.innerHTML = '';
+      t1.appendChild(popupPlayerEl(players[0]));
+      t1.appendChild(popupPlayerEl(players[1]));
+      t2.appendChild(popupPlayerEl(players[2]));
+      t2.appendChild(popupPlayerEl(players[3]));
+
+      /* Show overlay */
+      const overlay = document.getElementById('popup-overlay');
+      overlay.classList.add('show');
+
+      /* Animate bar */
+      animateBar();
+
+      /* Speech */
+      const txt = `Court ${courtIdx+1}. Team 1: ${players[0].name}, ${players[1].name}. ` +
+                  `Team 2: ${players[2].name}, ${players[3].name}.`;
+
+      function hide() { if (myId === popupId) overlay.classList.remove('show'); }
+
+      speak(txt, hide);
+
+      /* Fallback: hide after 30s if speech events don't fire */
+      popupTimer = setTimeout(hide, 30000);
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       Main refresh loop
+    ══════════════════════════════════════════════════════════════════════ */
+    async function refresh() {
+      try {
+        const [data, standings] = await Promise.all([
+          fetch('/api/state').then(r => r.json()),
+          fetch('/api/standings').then(r => r.json())
+        ]);
+
+        /* Update live podium data */
+        podiumData = standings;
+
+        /* Detect newly-filled courts and show popup */
+        if (prevCourts !== null) {
+          data.courts.forEach((c, idx) => {
+            const wasEmpty = !prevCourts[idx] || prevCourts[idx].length === 0;
+            const nowBusy  = Array.isArray(c) && c.length > 0;
+            if (wasEmpty && nowBusy) showPopup(idx, c);
+          });
+        }
+        prevCourts = data.courts.map(c => Array.isArray(c) ? [...c] : []);
+
+        /* Render courts */
+        const vars = courtSizeVars(data.courts.length);
+        const courtsEl = document.getElementById('courts-container');
+        courtsEl.innerHTML = '';
+        data.courts.forEach((c, idx) => {
+          const card = document.createElement('div');
+          card.style.cssText = vars;
+          if (!Array.isArray(c) || c.length === 0) {
+            card.className = 'tv-court';
+            const title = document.createElement('div'); title.className = 'tv-court-title'; title.textContent = `Court ${idx+1}`;
+            const free  = document.createElement('div'); free.className  = 'tv-court-free';  free.textContent  = 'Free';
+            card.appendChild(title); card.appendChild(free);
+          } else {
+            card.className = 'tv-court busy';
+            const title = document.createElement('div'); title.className = 'tv-court-title'; title.textContent = `Court ${idx+1}`;
+            card.appendChild(title);
+            const teams = document.createElement('div'); teams.className = 'tv-teams';
+            [[c[0],c[1],'Team 1'],[c[2],c[3],'Team 2']].forEach(([pa,pb,lbl]) => {
+              const team = document.createElement('div'); team.className = 'tv-team';
+              const l = document.createElement('div'); l.className = 'tv-team-label'; l.textContent = lbl;
+              team.appendChild(l); team.appendChild(playerEl(pa)); team.appendChild(playerEl(pb));
+              teams.appendChild(team);
+            });
+            card.appendChild(teams);
+          }
+          courtsEl.appendChild(card);
+        });
+
+        /* Render waiting queue */
+        const qEl = document.getElementById('queue-list');
+        qEl.innerHTML = '';
+        if (!data.queue.length) {
+          qEl.innerHTML = '<li style="color:var(--ink-muted);font-style:italic;padding:0.15rem 0.2rem">No one waiting.</li>';
+        } else {
+          data.queue.forEach((p, i) => {
+            const li = document.createElement('li');
+            const spot = document.createElement('span'); spot.className = 'spot'; spot.textContent = i+1;
+            li.appendChild(spot);
+            li.appendChild(makeAvatar(p, 'tv-qph'));
+            const ns = document.createElement('span'); ns.textContent = ' '+p.name;
+            li.appendChild(ns);
+            qEl.appendChild(li);
+          });
+        }
+      } catch(err) { console.error('TV refresh error:', err); }
+    }
+
+    refresh();
+    setInterval(refresh, 2000);  /* 2s polling — faster detection */
+
+    /* ════════════════════════════════════════════════════════════════════
+       Podium — shows top 3 players from live /api/standings
+    ════════════════════════════════════════════════════════════════════ */
+
+    function podiumAvatar(container, p) {
+      container.innerHTML = '';
+      if (p && p.avatar) {
+        const img = document.createElement('img');
+        img.src = p.avatar; img.alt = p ? p.name : '';
+        img.onerror = function() {
+          this.outerHTML = DEFAULT_SVG;
+        };
+        container.appendChild(img);
+      } else {
+        container.innerHTML = DEFAULT_SVG;
+      }
+    }
+
+    function showPodium() {
+      const overlay = document.getElementById('podium-overlay');
+
+      // Use latest standings data from the last refresh
+      const top3 = podiumData.slice(0, 3);
+
+      // Slot order: 2nd (left), 1st (center), 3rd (right)
+      const slots = [
+        { idx: 1, nameEl: 'podium-name-2', ptsEl: 'podium-pts-2', avEl: 'podium-avatar-2', slot: '#podium-2nd' },
+        { idx: 0, nameEl: 'podium-name-1', ptsEl: 'podium-pts-1', avEl: 'podium-avatar-1', slot: '#podium-1st' },
+        { idx: 2, nameEl: 'podium-name-3', ptsEl: 'podium-pts-3', avEl: 'podium-avatar-3', slot: '#podium-3rd' },
+      ];
+
+      slots.forEach(({ idx, nameEl, ptsEl, avEl }) => {
+        const p = top3[idx];
+        const nameDiv = document.getElementById(nameEl);
+        const ptsDiv  = document.getElementById(ptsEl);
+        const avDiv   = document.getElementById(avEl);
+        const slotEl  = avDiv.closest('.podium-slot');
+
+        if (p) {
+          nameDiv.textContent = p.name;
+          const pts = p.pts !== undefined ? p.pts : 0;
+          ptsDiv.textContent  = `${p.w}W ${p.l}L  ${pts >= 0 ? '+' : ''}${pts} pts`;
+          podiumAvatar(avDiv, p);
+          if (slotEl) slotEl.style.opacity = '1';
+        } else {
+          nameDiv.textContent = '—';
+          ptsDiv.textContent  = '';
+          avDiv.innerHTML = DEFAULT_SVG;
+          if (slotEl) slotEl.style.opacity = '0.3';
+        }
+      });
+
+      overlay.classList.add('show');
+    }
+
+    document.getElementById('podium-close').addEventListener('click', () => {
+      document.getElementById('podium-overlay').classList.remove('show');
+    });
+    // Also close on backdrop click
+    document.getElementById('podium-overlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('podium-overlay') ||
+          e.target === document.getElementById('podium-inner')) {
+        document.getElementById('podium-overlay').classList.remove('show');
+      }
+    });
+  </script>
+</body>
+</html>
