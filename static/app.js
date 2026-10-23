@@ -242,10 +242,12 @@ function renderDeck(queue, perGame, courts) {
   }
 
   const checkedInIds = new Set(checkedIn.map(p => p.id));
-  const isValid = currentDeckPlayers.length === perGame
-    && currentDeckPlayers.every(p => checkedInIds.has(p.id));
-
-  if (!isValid) {
+  const allQueueIds = new Set(queue.map(p => p.id));
+  
+  // Only regenerate deck if a player from it is completely gone from queue
+  const deckPlayersMissing = currentDeckPlayers.some(p => !allQueueIds.has(p.id));
+  
+  if (deckPlayersMissing) {
     currentDeckPlayers = pickDeckGroup(checkedIn, perGame);
   }
 
