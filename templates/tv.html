@@ -74,21 +74,23 @@
 
     /* Timer badge in court title */
     .tv-timer {
-      font: 800 0.85rem/1 var(--font-display);
-      letter-spacing: 0.04em;
-      color: var(--beige-light);
-      background: rgba(0,0,0,0.3);
-      border: 1px solid rgba(245,225,185,0.25);
+      font: 900 1rem/1 var(--font-display);
+      letter-spacing: 0.06em;
+      color: #fff;
+      background: rgba(0,0,0,0.45);
+      border: 1.5px solid rgba(245,225,185,0.5);
       border-radius: 6px;
-      padding: 0.15rem 0.45rem;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+      padding: 0.2rem 0.55rem;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.7);
       font-variant-numeric: tabular-nums;
+      min-width: 3.5rem;
+      text-align: center;
     }
     /* Turn red after 20 minutes */
     .tv-timer.overtime {
       color: #ff6b6b;
-      border-color: rgba(255,107,107,0.4);
-      background: rgba(180,0,0,0.3);
+      border-color: rgba(255,107,107,0.7);
+      background: rgba(180,0,0,0.45);
     }
     .tv-court-free {
       flex: 1; display: flex; align-items: center; justify-content: center;
@@ -180,6 +182,22 @@
       background: var(--maroon-dark);
       display: flex; align-items: center; justify-content: center;
       font: 700 0.55rem var(--font-display); color: var(--beige-light);
+    }
+
+    /* Wait timer in queue list */
+    .tv-wait-timer {
+      margin-left: auto; flex-shrink: 0;
+      font: 700 0.68rem/1 var(--font-display);
+      color: rgba(107,0,32,0.7);
+      background: rgba(107,0,32,0.08);
+      border: 1px solid rgba(107,0,32,0.2);
+      border-radius: 4px; padding: 0.1rem 0.3rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .tv-wait-timer.wait-long {
+      color: #cc2200; background: rgba(204,34,0,0.1);
+      border-color: rgba(204,34,0,0.35);
+      font-weight: 800;
     }
 
     /* ── Full-screen Now Playing splash ──────────────────────────────────── */
@@ -537,23 +555,33 @@
     let popupTimer = null;
     let popupId    = 0;
     let soundUnlocked = false;
-    let podiumData = STANDINGS_FROM_SERVER.slice();
+    let podiumData = [];  // start empty, only populate after first game
+    let hasAnyResult = false;  // track if any game has finished
     let courtStartTimes = {};  // court index (str) -> server unix timestamp
+    let serverTimeOffset = 0;  // diff between server time and client time (ms)
 
-    /* ── 1-second tick to update all court timers in place ── */
+    /* ── 1-second tick: update ALL court timers and queue wait timers ── */
     function fmtTime(seconds) {
-      const m = Math.floor(seconds / 60);
-      const s = seconds % 60;
+      const m = Math.floor(Math.max(0, seconds) / 60);
+      const s = Math.floor(Math.max(0, seconds) % 60);
       return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     }
+
     function tickTimers() {
-      const now = Date.now() / 1000;
-      Object.entries(courtStartTimes).forEach(([idx, startTs]) => {
-        const el = document.getElementById(`court-timer-${idx}`);
-        if (!el) return;
+      const now = (Date.now() / 1000) - serverTimeOffset;
+      // Court timers
+      document.querySelectorAll('.tv-timer[data-start]').forEach(el => {
+        const startTs = parseFloat(el.dataset.start);
         const elapsed = Math.floor(now - startTs);
         el.textContent = fmtTime(elapsed);
         el.classList.toggle('overtime', elapsed >= 20 * 60);
+      });
+      // Queue wait timers
+      document.querySelectorAll('.tv-wait-timer[data-start]').forEach(el => {
+        const startTs = parseFloat(el.dataset.start);
+        const elapsed = Math.floor(now - startTs);
+        el.textContent = fmtTime(elapsed);
+        el.classList.toggle('wait-long', elapsed >= 15 * 60);
       });
     }
     setInterval(tickTimers, 1000);
@@ -719,16 +747,13 @@
     ══════════════════════════════════════════════════════════════════════ */
     async function refresh() {
       try {
-        const [data, standings] = await Promise.all([
-          fetch('/api/state').then(r => r.json()),
-          fetch('/api/standings').then(r => r.json())
-        ]);
+        const data = await fetch('/api/state').then(r => r.json());
 
-        /* Update live podium data */
-        podiumData = standings;
-
-        /* Update court start times */
+        /* Update court start times + server time offset */
         courtStartTimes = data.court_start_times || {};
+        if (data.server_time) {
+          serverTimeOffset = (Date.now() / 1000) - data.server_time;
+        }
 
         /* Detect newly-filled courts and show popup */
         if (prevCourts !== null) {
@@ -754,20 +779,29 @@
             card.appendChild(title); card.appendChild(free);
           } else {
             card.className = 'tv-court busy';
-            const title = document.createElement('div'); title.className = 'tv-court-title'; title.textContent = `Court ${idx+1}`;
-            // Add timer badge
+            const title = document.createElement('div');
+            title.className = 'tv-court-title';
+
+            // Court name (left side)
+            const courtName = document.createElement('span');
+            courtName.textContent = `Court ${idx + 1}`;
+            title.appendChild(courtName);
+
+            // Timer badge (right side) — use data-start so tickTimers can find it
             const timer = document.createElement('span');
             timer.className = 'tv-timer';
             timer.id = `court-timer-${idx}`;
             const startTs = courtStartTimes[String(idx)];
             if (startTs) {
-              const elapsed = Math.floor(Date.now() / 1000 - startTs);
+              timer.dataset.start = startTs;
+              const elapsed = Math.floor((Date.now() / 1000) - serverTimeOffset - startTs);
               timer.textContent = fmtTime(elapsed);
-              timer.classList.toggle('overtime', elapsed >= 20 * 60);
+              if (elapsed >= 20 * 60) timer.classList.add('overtime');
             } else {
               timer.textContent = '00:00';
             }
             title.appendChild(timer);
+
             card.appendChild(title);
             const teams = document.createElement('div'); teams.className = 'tv-teams';
             [[c[0],c[1],'Team 1'],[c[2],c[3],'Team 2']].forEach(([pa,pb,lbl]) => {
@@ -794,6 +828,19 @@
             li.appendChild(makeAvatar(p, 'tv-qph'));
             const ns = document.createElement('span'); ns.textContent = ' '+p.name;
             li.appendChild(ns);
+
+            // Wait timer
+            const joinTs = (data.queue_join_times || {})[String(p.id)];
+            if (joinTs) {
+              const wt = document.createElement('span');
+              wt.className = 'tv-wait-timer';
+              wt.dataset.start = joinTs;
+              const elapsed = Math.floor((Date.now() / 1000) - serverTimeOffset - joinTs);
+              wt.textContent = fmtTime(elapsed);
+              if (elapsed >= 15 * 60) wt.classList.add('wait-long');
+              li.appendChild(wt);
+            }
+
             qEl.appendChild(li);
           });
         }
@@ -801,10 +848,70 @@
     }
 
     refresh();
-    setInterval(refresh, 2000);  /* 2s polling — faster detection */
+    setInterval(refresh, 500);  /* 500ms polling for courts & queue */
 
     /* ════════════════════════════════════════════════════════════════════
-       Podium — shows top 3 players from live /api/standings
+       Update Standings Display — real-time table updates
+    ════════════════════════════════════════════════════════════════════ */
+    function updateStandingsDisplay() {
+      const tbody = document.querySelector('.tv-standings table tbody');
+      if (!tbody) return;
+      
+      tbody.innerHTML = '';  // clear old rows
+      
+      podiumData.forEach((p, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = `rank-${idx + 1}`;
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td class="name-col">${p.name}</td>
+          <td>${p.w}</td>
+          <td>${p.l}</td>
+          <td>${p.pts !== undefined ? p.pts : 0}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      
+      if (podiumData.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="5" style="text-align:center;color:var(--ink-muted);">No games yet.</td>';
+        tbody.appendChild(tr);
+      }
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       Standings — real-time via SSE stream
+    ════════════════════════════════════════════════════════════════════ */
+    function listenStandingsStream() {
+      const es = new EventSource('/api/standings-stream');
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          const standings = data.standings || data;
+          
+          // Update standings data for display
+          if (standings && standings.length >= 0) {
+            podiumData = standings;
+            updateStandingsDisplay();  // update the standings table, NOT the podium
+          }
+          
+          if (data.server_time) {
+            serverTimeOffset = (Date.now() / 1000) - data.server_time;
+          }
+        } catch (err) {
+          console.error('Failed to parse standings:', err);
+        }
+      };
+      es.onerror = () => {
+        console.warn('SSE connection lost, reconnecting...');
+        es.close();
+        setTimeout(listenStandingsStream, 2000);  // reconnect after 2s
+      };
+    }
+    listenStandingsStream();
+
+    /* ════════════════════════════════════════════════════════════════════
+       Podium — shows top 3 players from live standings
     ════════════════════════════════════════════════════════════════════ */
 
     function podiumAvatar(container, p) {

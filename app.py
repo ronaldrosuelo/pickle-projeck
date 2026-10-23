@@ -6,8 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 from itertools import combinations, count
 from threading import Lock
-
-from flask import Flask, jsonify, render_template, render_template_string, request
+from flask import Flask, jsonify, render_template, render_template_string, request, Response
 
 app = Flask(__name__)
 
@@ -21,10 +20,49 @@ queue = []  # [{"id": 1, "name": "Sam"}]
 on_break = []  # [{"id": 2, "name": "Ana"}]
 courts = [[], []]  # each court: [team1_a, team1_b, team2_a, team2_b] or []
 court_start_times = {}  # court_index -> unix timestamp (float) when game started
+queue_join_times  = {}  # player_id   -> unix timestamp (float) when joined queue
 results = {}  # name_lower -> {"w": 0, "l": 0}
 together = {}  # (name_a, name_b) -> games in the same game
 partners = {}  # (name_a, name_b) -> games as teammates
 locked_with = {}  # player_id -> partner player_id
+sse_clients = []  # list of queues to broadcast standings updates
+
+
+def get_standings():
+    """Build sorted standings from results dict, with avatars from current players."""
+    # Build avatar lookup from everyone currently tracked
+    avatar_lookup = {}
+    everyone = list(queue) + list(on_break) + [p for c in courts for p in c]
+    for p in everyone:
+        av = p.get("avatar")
+        if av:
+            avatar_lookup[p["name"].lower()] = av
+
+    sorted_s = sorted(
+        [{"name": name.capitalize(), "w": stats["w"], "l": stats["l"],
+          "pts": stats.get("pts", 0)} for name, stats in results.items()],
+        key=lambda x: (x["pts"], x["w"], -x["l"]),
+        reverse=True
+    )
+    for p in sorted_s:
+        p["avatar"] = avatar_lookup.get(p["name"].lower())
+    return sorted_s
+
+
+def broadcast_standings():
+    """Send standings update to all connected SSE clients."""
+    standings = get_standings()
+    now = time.time()
+    msg = f"data: {json.dumps({'standings': standings, 'server_time': now})}\n\n"
+    dead_clients = []
+    for i, q in enumerate(sse_clients):
+        try:
+            q.put(msg)
+        except:
+            dead_clients.append(i)
+    # Clean up dead connections
+    for i in reversed(dead_clients):
+        sse_clients.pop(i)
 
 
 def tally(p):
@@ -38,6 +76,7 @@ def tally(p):
 
 def state():
     checked_in_count = sum(1 for p in queue if p.get("checked_in", False))
+    now = time.time()
     return {
         "queue": [tally(p) for p in queue],
         "courts": [[tally(p) for p in c] for c in courts],
@@ -46,6 +85,8 @@ def state():
         "max_courts": MAX_COURTS,
         "checked_in_count": checked_in_count,
         "court_start_times": {str(k): v for k, v in court_start_times.items()},
+        "queue_join_times":  {str(k): v for k, v in queue_join_times.items()},
+        "server_time": now,
     }
 
 
@@ -83,16 +124,36 @@ def make_units():
 
 def pick_group():
     units, checked = make_units()
-    if sum(len(u) for u in units) < PLAYERS_PER_GAME:
+    if sum(len(u) for u in checked) < PLAYERS_PER_GAME:
         return None, None
 
-    shuffled_units = list(units)
-    random.shuffle(shuffled_units)
+    # Sort checked players by wait time (oldest first)
+    now = time.time()
+    checked_with_wait = []
+    for i, p in enumerate(checked):
+        wait_time = now - queue_join_times.get(p["id"], now)
+        checked_with_wait.append((wait_time, i, p))
+    
+    checked_with_wait.sort(reverse=True, key=lambda x: x[0])  # longest wait first
+    
+    # Rebuild units with priority: players with longest wait time first
+    priority_checked = [p for _, _, p in checked_with_wait]
+    priority_pos = {p["id"]: i for i, p in enumerate(priority_checked)}
+    
+    # Reorder units based on priority position
+    units_by_priority = []
+    for unit_indices in units:
+        # Get the min priority (earliest) player in this unit
+        min_priority = min(priority_pos.get(checked[i]["id"], float('inf')) for i in unit_indices)
+        units_by_priority.append((min_priority, unit_indices))
+    
+    units_by_priority.sort(key=lambda x: x[0])  # sort by priority
+    sorted_units = [u for _, u in units_by_priority]
 
     selected_indices = []
-    for u in shuffled_units:
+    for u in sorted_units:
         if len(selected_indices) + len(u) <= PLAYERS_PER_GAME:
-            selected_indices.extend(u)   # keep pair indices together — DO NOT sort
+            selected_indices.extend(u)
             if len(selected_indices) == PLAYERS_PER_GAME:
                 return selected_indices, checked
 
@@ -496,27 +557,38 @@ def get_state():
 
 
 @app.get("/api/standings")
-def get_standings():
+def get_standings_json():
     """Returns sorted standings with name, w, l, pts.
     Also attaches avatar URL from any player currently in queue/break/court."""
     with lock:
-        # Build avatar lookup from everyone currently tracked
-        avatar_lookup = {}
-        everyone = list(queue) + list(on_break) + [p for c in courts for p in c]
-        for p in everyone:
-            av = p.get("avatar")
-            if av:
-                avatar_lookup[p["name"].lower()] = av
+        return jsonify(get_standings())
 
-        sorted_s = sorted(
-            [{"name": name.capitalize(), "w": stats["w"], "l": stats["l"],
-              "pts": stats.get("pts", 0)} for name, stats in results.items()],
-            key=lambda x: (x["pts"], x["w"], -x["l"]),
-            reverse=True
-        )
-        for p in sorted_s:
-            p["avatar"] = avatar_lookup.get(p["name"].lower())
-        return jsonify(sorted_s)
+
+@app.get("/api/standings-stream")
+def standings_stream():
+    """Server-Sent Events stream for real-time standings updates."""
+    from queue import Queue
+    q = Queue()
+    sse_clients.append(q)
+    
+    def generate():
+        try:
+            # Send current standings immediately
+            standings = get_standings()
+            yield f"data: {json.dumps(standings)}\n\n"
+            # Then wait for updates
+            while True:
+                msg = q.get(timeout=30)  # 30s timeout to detect dead clients
+                yield msg
+        except:
+            pass
+        finally:
+            if q in sse_clients:
+                sse_clients.remove(q)
+    
+    return Response(generate(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache",
+                             "X-Accel-Buffering": "no"})
 
 
 @app.post("/api/join")
@@ -527,7 +599,9 @@ def join():
     with lock:
         if name_taken(name):
             return error(f"{name} is already in the queue, on break, or on a court.")
-        queue.append({"id": next(next_id), "name": name})
+        p = {"id": next(next_id), "name": name}
+        queue.append(p)
+        # Timer starts only when they check in, not when they join
         return jsonify(state())
 
 
@@ -544,7 +618,9 @@ def bulk_join():
     with lock:
         for name in names:
             if not name_taken(name):
-                queue.append({"id": next(next_id), "name": name})
+                p = {"id": next(next_id), "name": name}
+                queue.append(p)
+                # Timer starts on check-in, not on join
                 added_count += 1
         res = state()
         res["added_count"] = added_count
@@ -557,6 +633,7 @@ def leave(player_id):
         unlock(player_id)
         queue[:] = [p for p in queue if p["id"] != player_id]
         on_break[:] = [p for p in on_break if p["id"] != player_id]
+        queue_join_times.pop(player_id, None)
         return jsonify(state())
 
 
@@ -593,6 +670,8 @@ def take_break(player_id):
             on_break.append({"id": p["id"], "name": p["name"],
                              "checked_in": p.get("checked_in", False),
                              "avatar": p.get("avatar")})
+            # Clear timer when on break
+            queue_join_times.pop(p["id"], None)
         return jsonify(state())
 
 
@@ -607,6 +686,9 @@ def resume(player_id):
             queue.append({"id": p["id"], "name": p["name"],
                           "checked_in": p.get("checked_in", False),
                           "avatar": p.get("avatar")})
+            # Restart timer if they were checked in before break
+            if p.get("checked_in", False):
+                queue_join_times[p["id"]] = time.time()
         return jsonify(state())
 
 
@@ -705,14 +787,14 @@ def finish(n):
                 r = results.setdefault(p["name"].lower(), {"w": 0, "l": 0, "pts": 0})
                 r["l"]   += 1
                 r["pts"] += diff_lost
-        queue.extend(
-            {"id": p["id"], "name": p["name"],
-             "checked_in": True,
-             "avatar": p.get("avatar")}
-            for p in courts[n]
-        )
+        for p in courts[n]:
+            queue.append({"id": p["id"], "name": p["name"],
+                          "checked_in": True, "avatar": p.get("avatar")})
+            # They're back from game, reset timer since they're still checked-in
+            queue_join_times[p["id"]] = time.time()
         courts[n] = []
         court_start_times.pop(n, None)  # clear timer
+        broadcast_standings()  # push update to all SSE clients
         return jsonify(state())
 
 
@@ -732,7 +814,12 @@ def toggle_checkin(player_id):
         p = next((p for p in queue if p["id"] == player_id), None)
         if p is None:
             return error("Player not found in queue.", 404)
-        p["checked_in"] = not p.get("checked_in", False)
+        # Toggle checked-in status
+        was_checked = p.get("checked_in", False)
+        p["checked_in"] = not was_checked
+        # Record join time when they check in
+        if not was_checked and player_id not in queue_join_times:
+            queue_join_times[player_id] = time.time()
         return jsonify(state())
 
 
@@ -926,6 +1013,7 @@ def reclub_import():
                     if av:
                         player["avatar"] = av
                     queue.append(player)
+                    # Timer starts on check-in
                     added_count += 1
             res_state = state()
             res_state["added_count"] = added_count
@@ -1260,6 +1348,7 @@ def reset_state():
         on_break[:] = []
         courts[:] = [[], []]
         court_start_times.clear()
+        queue_join_times.clear()
         results.clear()
         together.clear()
         partners.clear()

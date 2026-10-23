@@ -318,6 +318,18 @@
       window.speechSynthesis.speak(utter);
     });
 
+    /* ── Wait timer tick — updates .wait-badge every second ── */
+    setInterval(() => {
+      document.querySelectorAll('.wait-badge[data-start]').forEach(b => {
+        const startTs = parseFloat(b.dataset.start);
+        const offset  = parseFloat(b.dataset.offset || '0');
+        const elapsed = Math.floor((Date.now() / 1000) - offset - startTs);
+        const m = Math.floor(elapsed / 60), s = elapsed % 60;
+        b.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        b.classList.toggle('wait-long', elapsed >= 15 * 60);
+      });
+    }, 1000);
+
     /* ── Speech engine ─────────────────────────────────────────────────────
        Rules:
        - Only ONE keepalive interval at a time (stored in _ttsKeepalive)

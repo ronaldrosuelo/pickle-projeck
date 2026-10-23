@@ -313,7 +313,12 @@ function checkinButton(p) {
 
 function render(data) {
   lastState = data;
-  const { queue, courts, breaks, per_game, max_courts, checked_in_count } = data;
+  const { queue, courts, breaks, per_game, max_courts, checked_in_count,
+          queue_join_times, server_time } = data;
+
+  // Compute client↔server time offset once per render
+  const serverOffset = server_time ? (Date.now() / 1000) - server_time : 0;
+
   names = new Map([...queue, ...courts.flat(), ...breaks].map((p) => [p.id, p.name]));
   if (pending && !queue.some((p) => p.id === pending && !p.partner_id)) pending = null;
 
@@ -343,13 +348,29 @@ function render(data) {
 
   $("#queue").replaceChildren(
     ...(queue.length
-      ? queue.map((p, i) => el("li", {},
-          el("span", { className: "spot", textContent: i + 1 }),
-          person(p),
-          checkinButton(p),
-          partnerButton(p),
-          button("Break", () => run(`/api/break/${p.id}`), "quiet", `${p.name} takes a break`),
-          button("Leave", () => run(`/api/leave/${p.id}`), "quiet", `Remove ${p.name} from the queue`)))
+      ? queue.map((p, i) => {
+          const joinTs = queue_join_times && queue_join_times[String(p.id)];
+          const waitEl = joinTs ? (() => {
+            const elapsed = Math.floor((Date.now() / 1000) - serverOffset - joinTs);
+            const m = Math.floor(elapsed / 60), s = elapsed % 60;
+            const txt = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+            const span = el("span", { className: "wait-badge", textContent: txt });
+            span.dataset.start = joinTs;
+            span.dataset.offset = serverOffset;
+            if (elapsed >= 15 * 60) span.classList.add("wait-long");
+            return span;
+          })() : null;
+
+          const li = el("li", {},
+            el("span", { className: "spot", textContent: i + 1 }),
+            person(p),
+            ...(waitEl ? [waitEl] : []),
+            checkinButton(p),
+            partnerButton(p),
+            button("Break", () => run(`/api/break/${p.id}`), "quiet", `${p.name} takes a break`),
+            button("Leave", () => run(`/api/leave/${p.id}`), "quiet", `Remove ${p.name} from the queue`));
+          return li;
+        })
       : [el("li", { className: "empty", textContent: "No one waiting. Join to get in line." })]));
 
   $("#break-h").hidden = breaks.length === 0;

@@ -540,3 +540,22 @@ body .tv-popup-team-label { color: var(--lime-light); }
 body .rank-1 .name-col { color: var(--lime-dark); }
 body .rank-3 .name-col { color: var(--leather); }
 body .tv-queue .spot { color: var(--lime-light); }
+
+/* ── Wait time badge in queue list ── */
+.wait-badge {
+  font: 700 0.72rem/1 var(--font-display);
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  background: rgba(0,0,0,0.07);
+  border: 1px solid var(--beige-dark);
+  border-radius: 5px;
+  padding: 0.15rem 0.4rem;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.wait-badge.wait-long {
+  color: var(--error);
+  background: rgba(204,34,0,0.08);
+  border-color: rgba(204,34,0,0.3);
+  font-weight: 800;
+}
