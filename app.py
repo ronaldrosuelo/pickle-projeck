@@ -20,6 +20,7 @@ next_id = count(1)
 queue = []  # [{"id": 1, "name": "Sam"}]
 on_break = []  # [{"id": 2, "name": "Ana"}]
 courts = [[], []]  # each court: [team1_a, team1_b, team2_a, team2_b] or []
+court_start_times = {}  # court_index -> unix timestamp (float) when game started
 results = {}  # name_lower -> {"w": 0, "l": 0}
 together = {}  # (name_a, name_b) -> games in the same game
 partners = {}  # (name_a, name_b) -> games as teammates
@@ -44,6 +45,7 @@ def state():
         "per_game": PLAYERS_PER_GAME,
         "max_courts": MAX_COURTS,
         "checked_in_count": checked_in_count,
+        "court_start_times": {str(k): v for k, v in court_start_times.items()},
     }
 
 
@@ -672,6 +674,7 @@ def start(n):
             courts[n] = split_teams(group)
                 
         record_game(courts[n])
+        court_start_times[n] = time.time()  # record start time
         return jsonify(state())
 
 
@@ -709,6 +712,7 @@ def finish(n):
             for p in courts[n]
         )
         courts[n] = []
+        court_start_times.pop(n, None)  # clear timer
         return jsonify(state())
 
 
@@ -1255,6 +1259,7 @@ def reset_state():
         queue[:] = []
         on_break[:] = []
         courts[:] = [[], []]
+        court_start_times.clear()
         results.clear()
         together.clear()
         partners.clear()

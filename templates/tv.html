@@ -67,9 +67,29 @@
     .tv-court-title {
       font: 700 0.6rem/1 var(--font-display); letter-spacing: 0.12em;
       text-transform: uppercase; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: space-between;
     }
     .tv-court .tv-court-title  { color: var(--ink-muted); text-shadow: 0 1px 0 rgba(255,255,255,0.6); }
     .tv-court.busy .tv-court-title { color: rgba(245,225,185,0.55); text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+
+    /* Timer badge in court title */
+    .tv-timer {
+      font: 800 0.85rem/1 var(--font-display);
+      letter-spacing: 0.04em;
+      color: var(--beige-light);
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(245,225,185,0.25);
+      border-radius: 6px;
+      padding: 0.15rem 0.45rem;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+      font-variant-numeric: tabular-nums;
+    }
+    /* Turn red after 20 minutes */
+    .tv-timer.overtime {
+      color: #ff6b6b;
+      border-color: rgba(255,107,107,0.4);
+      background: rgba(180,0,0,0.3);
+    }
     .tv-court-free {
       flex: 1; display: flex; align-items: center; justify-content: center;
       font-style: italic; color: var(--ink-muted); font-size: 0.85rem;
@@ -517,7 +537,26 @@
     let popupTimer = null;
     let popupId    = 0;
     let soundUnlocked = false;
-    let podiumData = STANDINGS_FROM_SERVER.slice(); // live-updated by refresh
+    let podiumData = STANDINGS_FROM_SERVER.slice();
+    let courtStartTimes = {};  // court index (str) -> server unix timestamp
+
+    /* ── 1-second tick to update all court timers in place ── */
+    function fmtTime(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+    function tickTimers() {
+      const now = Date.now() / 1000;
+      Object.entries(courtStartTimes).forEach(([idx, startTs]) => {
+        const el = document.getElementById(`court-timer-${idx}`);
+        if (!el) return;
+        const elapsed = Math.floor(now - startTs);
+        el.textContent = fmtTime(elapsed);
+        el.classList.toggle('overtime', elapsed >= 20 * 60);
+      });
+    }
+    setInterval(tickTimers, 1000);
 
     /* ── Unlock audio on first user interaction ── */
     function unlockSound() {
@@ -688,6 +727,9 @@
         /* Update live podium data */
         podiumData = standings;
 
+        /* Update court start times */
+        courtStartTimes = data.court_start_times || {};
+
         /* Detect newly-filled courts and show popup */
         if (prevCourts !== null) {
           data.courts.forEach((c, idx) => {
@@ -713,6 +755,19 @@
           } else {
             card.className = 'tv-court busy';
             const title = document.createElement('div'); title.className = 'tv-court-title'; title.textContent = `Court ${idx+1}`;
+            // Add timer badge
+            const timer = document.createElement('span');
+            timer.className = 'tv-timer';
+            timer.id = `court-timer-${idx}`;
+            const startTs = courtStartTimes[String(idx)];
+            if (startTs) {
+              const elapsed = Math.floor(Date.now() / 1000 - startTs);
+              timer.textContent = fmtTime(elapsed);
+              timer.classList.toggle('overtime', elapsed >= 20 * 60);
+            } else {
+              timer.textContent = '00:00';
+            }
+            title.appendChild(timer);
             card.appendChild(title);
             const teams = document.createElement('div'); teams.className = 'tv-teams';
             [[c[0],c[1],'Team 1'],[c[2],c[3],'Team 2']].forEach(([pa,pb,lbl]) => {
