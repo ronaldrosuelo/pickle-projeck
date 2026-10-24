@@ -44,8 +44,9 @@
       display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;
     }
     .tv-courts {
-      display: grid; grid-template-columns: 1fr 1fr;
-      grid-auto-rows: 1fr; gap: 0.8rem; min-height: 0;
+      display: grid; 
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      grid-auto-rows: 1fr; gap: 1rem; min-height: 0;
     }
     .tv-sidebar {
       display: flex; flex-direction: column; gap: 1rem; min-height: 0;
@@ -53,8 +54,8 @@
 
     /* ── Court card ── */
     .tv-court {
-      border-radius: 12px; padding: 1rem;
-      display: flex; flex-direction: column; gap: 0.5rem;
+      border-radius: 12px; padding: 1.2rem;
+      display: flex; flex-direction: column; gap: 0.8rem;
       position: relative; overflow: hidden; min-height: 0;
       background: #ffffff;
       border: 2px solid #ddd;
@@ -66,7 +67,7 @@
     }
     .tv-court > * { position: relative; z-index: 1; }
     .tv-court-title {
-      font: 800 1.5rem/1 var(--font-display); letter-spacing: 0.05em;
+      font: 800 1.8rem/1 var(--font-display); letter-spacing: 0.05em;
       text-transform: uppercase; flex-shrink: 0;
       display: flex; align-items: center; justify-content: space-between;
       color: #333;
@@ -76,16 +77,16 @@
 
     /* Timer badge in court title */
     .tv-timer {
-      font: 900 1rem/1 var(--font-display);
+      font: 900 1.3rem/1 var(--font-display);
       letter-spacing: 0.06em;
       color: #fff;
       background: rgba(0,0,0,0.45);
       border: 1.5px solid rgba(245,225,185,0.5);
       border-radius: 6px;
-      padding: 0.2rem 0.55rem;
+      padding: 0.3rem 0.7rem;
       text-shadow: 0 1px 4px rgba(0,0,0,0.7);
       font-variant-numeric: tabular-nums;
-      min-width: 3.5rem;
+      min-width: 4.5rem;
       text-align: center;
     }
     .tv-timer.overtime {
@@ -99,14 +100,15 @@
     }
     .tv-teams {
       flex: 1; min-height: 0;
-      display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;
     }
     .tv-team {
-      display: flex; flex-direction: column; gap: 0.5rem;
-      padding: 0.5rem;
+      display: flex; flex-direction: column; gap: 0.75rem;
+      padding: 1rem;
       background: #fff;
       border: 1px solid #eee;
       border-radius: 8px;
+      justify-content: flex-start;
     }
 
     /* ── Team colors: Team 1 = soft green, Team 2 = soft orange (complementary) ── */
@@ -122,11 +124,12 @@
       text-transform: uppercase; color: #666; flex-shrink: 0;
     }
     .tv-player {
-      display: flex; align-items: center; gap: 0.75rem;
+      display: flex; align-items: center; gap: 1rem;
       width: 100%;
+      padding: 0.5rem 0;
     }
     .tv-player img, .tv-player .tv-ph {
-      width: 2.5rem; height: 2.5rem;
+      width: 3rem; height: 3rem;
       border-radius: 50%; flex-shrink: 0; object-fit: cover; display: block;
       border: 2px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
@@ -136,7 +139,7 @@
     }
     .tv-player .tv-ph svg { width: 60%; height: 60%; fill: #bbb; }
     .tv-player-name {
-      font: 700 1rem/1.2 var(--font-display); color: #333;
+      font: 700 1.15rem/1.2 var(--font-display); color: #333;
       text-shadow: none; text-align: left;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       flex: 1;
