@@ -41,110 +41,80 @@
     /* ── Main body ── */
     .tv-body {
       flex: 1; min-height: 0;
-      display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;
+      display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: minmax(0, 1fr); gap: 1rem;
     }
+    /* ── Courts grid: cards always share the space equally, empty or not ── */
     .tv-courts {
-      display: grid; 
-      grid-template-columns: repeat(2, 1fr);
-      grid-auto-rows: auto; gap: 1rem; min-height: 0;
-      overflow-y: auto;
+      --u: 4px;                       /* 1 "unit" = 1% of card height; set by fitCourts() */
+      display: grid;
+      grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+      grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr));
+      gap: 0.9rem; min-height: 0; height: 100%; overflow: hidden;
     }
-    .tv-sidebar {
-      display: flex; flex-direction: column; gap: 1rem; min-height: 0;
-    }
+    .tv-sidebar { display: flex; flex-direction: column; gap: 1rem; min-height: 0; }
 
-    /* ── Court card ── */
+    /* ── Court card (same size whether free or busy) ── */
     .tv-court {
-      border-radius: 12px; padding: 1.2rem;
-      display: flex; flex-direction: column; gap: 0.8rem;
-      position: relative; overflow: hidden;
-      background: #ffffff;
-      border: 2px solid #ddd;
+      display: grid; grid-template-rows: auto minmax(0, 1fr);
+      gap: calc(var(--u) * 3);
+      padding: calc(var(--u) * 4);
+      border-radius: 12px; min-height: 0; min-width: 0; overflow: hidden;
+      background: #ffffff; border: 2px solid #ddd;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      min-height: auto;
     }
-    .tv-court.busy {
-      background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);
-      border: 2px solid #ffcccc;
-    }
-    .tv-court > * { position: relative; z-index: 1; }
+    .tv-court.busy { background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%); border: 2px solid #ffcccc; }
     .tv-court-title {
-      font: 800 1.8rem/1 var(--font-display); letter-spacing: 0.05em;
-      text-transform: uppercase; flex-shrink: 0;
       display: flex; align-items: center; justify-content: space-between;
-      color: #333;
+      font: 800 calc(var(--u) * 16)/1 var(--font-display); letter-spacing: 0.05em;
+      text-transform: uppercase; color: #333;
     }
-    .tv-court .tv-court-title { color: #666; }
     .tv-court.busy .tv-court-title { color: #8b0000; }
-
-    /* Timer badge in court title */
     .tv-timer {
-      font: 900 1.3rem/1 var(--font-display);
-      letter-spacing: 0.06em;
-      color: #fff;
-      background: rgba(0,0,0,0.45);
-      border: 1.5px solid rgba(245,225,185,0.5);
-      border-radius: 6px;
-      padding: 0.3rem 0.7rem;
+      font: 900 calc(var(--u) * 13)/1 var(--font-display); letter-spacing: 0.06em;
+      color: #fff; background: rgba(0,0,0,0.45);
+      border: 1.5px solid rgba(245,225,185,0.5); border-radius: 6px;
+      padding: calc(var(--u) * 2.5) calc(var(--u) * 4);
       text-shadow: 0 1px 4px rgba(0,0,0,0.7);
-      font-variant-numeric: tabular-nums;
-      min-width: 4.5rem;
-      text-align: center;
+      font-variant-numeric: tabular-nums; text-align: center;
     }
-    .tv-timer.overtime {
-      color: #ff6b6b;
-      border-color: rgba(255,107,107,0.7);
-      background: rgba(180,0,0,0.45);
-    }
+    .tv-timer.overtime { color: #ff6b6b; border-color: rgba(255,107,107,0.7); background: rgba(180,0,0,0.45); }
     .tv-court-free {
-      flex: 1; display: flex; align-items: center; justify-content: center;
-      font-style: italic; color: var(--ink-muted); font-size: 0.85rem;
+      display: flex; align-items: center; justify-content: center;
+      font-style: italic; color: var(--ink-muted); font-size: calc(var(--u) * 8);
     }
+
+    /* ── Two team boxes side by side, each with 2 players stacked (avatar left, name right) ── */
     .tv-teams {
-      flex: 1; min-height: 0;
-      display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;
+      display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 3);
+      min-height: 0;
     }
     .tv-team {
-      display: flex; flex-direction: column; gap: 0.75rem;
-      padding: 1rem;
-      background: #fff;
-      border: 1px solid #eee;
-      border-radius: 8px;
-      justify-content: flex-start;
+      display: grid; grid-template-rows: 1fr 1fr; align-items: center;
+      padding: calc(var(--u) * 2.5) calc(var(--u) * 4);
+      border-radius: 8px; min-height: 0; min-width: 0; overflow: hidden;
+      background: #fff; border: 1px solid #eee;
     }
-
-    /* ── Team colors: Team 1 = soft green, Team 2 = soft orange (complementary) ── */
+    /* Team colors: Team 1 = soft green, Team 2 = soft orange (complementary) */
     .tv-team.team-1 { background: linear-gradient(180deg, #eaf7e4, #d4edc7); border: 1px solid #a9d495; }
     .tv-team.team-2 { background: linear-gradient(180deg, #fff1e2, #ffddb8); border: 1px solid #f2b878; }
-    .tv-team.team-1 .tv-team-label { color: #2f6b1f; }
-    .tv-team.team-2 .tv-team-label { color: #b45a00; }
     .tv-team.team-1 .tv-player img, .tv-team.team-1 .tv-player .tv-ph { border-color: #7fbf63; }
     .tv-team.team-2 .tv-player img, .tv-team.team-2 .tv-player .tv-ph { border-color: #f0a04b; }
 
-    .tv-team-label {
-      font: 700 0.95rem/1 var(--font-display); letter-spacing: 0.1em;
-      text-transform: uppercase; color: #666; flex-shrink: 0;
-    }
     .tv-player {
-      display: flex; align-items: center; gap: 1rem;
-      width: 100%;
-      padding: 0.5rem 0;
+      display: flex; align-items: center; gap: calc(var(--u) * 3);
+      min-width: 0; min-height: 0;
     }
     .tv-player img, .tv-player .tv-ph {
-      width: 3rem; height: 3rem;
+      width: calc(var(--u) * 22); height: calc(var(--u) * 22);
       border-radius: 50%; flex-shrink: 0; object-fit: cover; display: block;
       border: 2px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    .tv-player .tv-ph {
-      background: #f5f5f5;
-      display: flex; align-items: center; justify-content: center; overflow: hidden;
-    }
+    .tv-player .tv-ph { background: #f5f5f5; display: flex; align-items: center; justify-content: center; overflow: hidden; }
     .tv-player .tv-ph svg { width: 60%; height: 60%; fill: #bbb; }
     .tv-player-name {
-      font: 700 1.4rem/1.2 var(--font-display); color: #333;
-      text-shadow: none; text-align: left;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      flex: 1;
+      flex: 1; min-width: 0;
+      font: 700 calc(var(--u) * 13)/1.15 var(--font-display); color: #333;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
     }
 
     /* ── Sidebar ── */
@@ -162,15 +132,15 @@
     }
     .tv-queue-title { border-top: 1px solid var(--beige-dark); padding: 0.35rem 0.65rem; }
     .tv-standings { flex: 1; overflow-y: auto; }
-    .tv-standings table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .tv-standings table { width: 100%; border-collapse: collapse; font-size: 1rem; }
     .tv-standings th {
       position: sticky; top: 0;
       background: linear-gradient(180deg, var(--beige-light), var(--beige));
-      font: 700 0.62rem/1 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase;
-      color: var(--ink-muted); padding: 0.3rem 0.45rem;
+      font: 700 0.78rem/1 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--ink-muted); padding: 0.4rem 0.55rem;
       border-bottom: 1px solid var(--beige-dark); text-align: left;
     }
-    .tv-standings td { padding: 0.3rem 0.45rem; border-bottom: 1px solid var(--beige-dark); color: var(--ink); overflow-wrap: anywhere; }
+    .tv-standings td { padding: 0.4rem 0.55rem; border-bottom: 1px solid var(--beige-dark); color: var(--ink); overflow-wrap: anywhere; }
     .tv-standings tr:last-child td { border-bottom: none; }
     .tv-standings .name-col { font-weight: 600; }
     .rank-1 .name-col { color: var(--maroon); }
@@ -178,15 +148,15 @@
     .rank-3 .name-col { color: var(--leather); }
 
     /* ── Up Next deck list ── */
-    .tv-queue { list-style: none; margin: 0; padding: 0.25rem 0.45rem; overflow-y: auto; max-height: 40%; flex-shrink: 0; }
+    .tv-queue { list-style: none; margin: 0; padding: 0.35rem 0.55rem; overflow-y: auto; max-height: 40%; flex-shrink: 0; }
     .tv-queue li {
       display: flex; align-items: center; gap: 0.35rem;
-      padding: 0.18rem 0.3rem; font-size: 0.8rem; color: var(--ink);
+      padding: 0.22rem 0.4rem; font-size: 0.95rem; color: var(--ink);
       border-bottom: 1px solid var(--beige-dark);
     }
     .tv-queue li:last-child { border-bottom: none; }
     .tv-queue img, .tv-queue .tv-qph {
-      width: 1.35rem; height: 1.35rem; border-radius: 50%;
+      width: 1.8rem; height: 1.8rem; border-radius: 50%;
       object-fit: cover; flex-shrink: 0; border: 1px solid var(--beige-dark);
     }
     .tv-queue .tv-qph {
@@ -237,11 +207,11 @@
       border: 2px dashed rgba(245,220,190,0.18); border-radius: 20px; pointer-events: none;
     }
     #popup-court {
-      font: 700 1.1rem/1 var(--font-display); letter-spacing: 0.22em; text-transform: uppercase;
+      font: 700 1.4rem/1 var(--font-display); letter-spacing: 0.22em; text-transform: uppercase;
       color: rgba(245,225,185,0.55); margin-bottom: 0.4rem;
     }
     #popup-title {
-      font: 800 3.2rem/1 var(--font-display); letter-spacing: 0.06em; text-transform: uppercase;
+      font: 800 4rem/1 var(--font-display); letter-spacing: 0.06em; text-transform: uppercase;
       color: var(--beige-light); margin-bottom: 2.5rem;
       text-shadow: 0 2px 20px rgba(0,0,0,0.5);
     }
@@ -277,7 +247,7 @@
     }
     .popup-player .popup-ph svg { width: 55%; height: 55%; fill: rgba(245,225,185,0.85); }
     .popup-player-name {
-      font: 800 1.7rem/1.15 var(--font-display); color: var(--beige-light);
+      font: 800 2.1rem/1.15 var(--font-display); color: var(--beige-light);
       text-shadow: 0 2px 8px rgba(0,0,0,0.55); text-align: center; overflow-wrap: anywhere;
     }
     #popup-vs {
@@ -687,10 +657,24 @@
       requestAnimationFrame(step);
     }
 
-    function courtSizeVars(n) {
-      const rows = Math.ceil(n / 2);
-      return `--av:${Math.max(4, Math.round(22/rows))}vh; --fn:${Math.max(0.55, 1.05-(rows-1)*0.13).toFixed(2)}rem;`;
+    /* Layout: columns/rows for the court grid + scale unit so cards, avatars and names resize
+       automatically when courts are added/removed (or the screen size changes) */
+    function layoutCourts(n) {
+      const el = document.getElementById('courts-container');
+      const cols = n <= 1 ? 1 : 2;
+      el.style.setProperty('--cols', cols);
+      el.style.setProperty('--rows', Math.max(1, Math.ceil(n / cols)));
     }
+    function fitCourts() {
+      const el = document.getElementById('courts-container');
+      const card = el.querySelector('.tv-court');
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      /* limited by height (rows) and by width (so names still fit in the team boxes) */
+      const u = Math.max(2, Math.min(r.height / 100, r.width / 200));
+      el.style.setProperty('--u', u.toFixed(2) + 'px');
+    }
+    window.addEventListener('resize', fitCourts);
 
     /* ── Now Playing popup ── */
     function showPopup(courtIdx, players) {
@@ -783,12 +767,11 @@
         prevCourts = data.courts.map(c => Array.isArray(c) ? [...c] : []);
 
         /* Render courts */
-        const vars = courtSizeVars(data.courts.length);
+        layoutCourts(data.courts.length);
         const courtsEl = document.getElementById('courts-container');
         courtsEl.innerHTML = '';
         data.courts.forEach((c, idx) => {
           const card = document.createElement('div');
-          card.style.cssText = vars;
           if (!Array.isArray(c) || c.length === 0) {
             card.className = 'tv-court';
             const title = document.createElement('div'); title.className = 'tv-court-title'; title.textContent = `Court ${idx+1}`;
@@ -822,14 +805,15 @@
             [[c[0],c[1],'Team 1'],[c[2],c[3],'Team 2']].forEach(([pa,pb,lbl], ti) => {
               const team = document.createElement('div');
               team.className = 'tv-team team-' + (ti + 1);
-              const l = document.createElement('div'); l.className = 'tv-team-label'; l.textContent = lbl;
-              team.appendChild(l); team.appendChild(playerEl(pa)); team.appendChild(playerEl(pb));
+              team.appendChild(playerEl(pa)); team.appendChild(playerEl(pb));
               teams.appendChild(team);
             });
             card.appendChild(teams);
           }
           courtsEl.appendChild(card);
         });
+
+        fitCourts();
 
         /* Up Next deck (from the index page's deck) */
         lastQueueIds = new Set((data.queue || []).map(p => p.id));
