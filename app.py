@@ -893,6 +893,55 @@ def swap_players(n):
         return jsonify(state())
 
 
+@app.post("/api/courts/<int:n>/replace")
+def replace_player(n):
+    """Replace a player on court with a player from queue.
+    
+    The incoming player MUST be checked in.
+    The outgoing player stays checked in when returned to queue.
+    """
+    data = request.get_json(silent=True) or {}
+    out_id = data.get("out_id")  # Player leaving the court
+    in_id = data.get("in_id")    # Player entering from queue
+    
+    with lock:
+        if not 0 <= n < len(courts) or not courts[n]:
+            return error("No game on that court.", 400)
+        if len(courts[n]) != PLAYERS_PER_GAME:
+            return error("Court must have exactly 4 players.", 400)
+        
+        # Find the player to remove from court
+        out_idx = next((i for i, p in enumerate(courts[n]) if p["id"] == out_id), None)
+        if out_idx is None:
+            return error("Player to replace not found on court.", 404)
+        
+        # Find the player to add from queue
+        in_idx = next((i for i, p in enumerate(queue) if p["id"] == in_id), None)
+        if in_idx is None:
+            return error("Replacement player not found in queue.", 404)
+        
+        in_player = queue[in_idx]
+        
+        # Verify the incoming player is checked in
+        if not in_player.get("checked_in", False):
+            return error("Replacement player must be checked in.", 400)
+        
+        # Perform the replacement
+        out_player = courts[n][out_idx]
+        in_player = queue[in_idx]
+        
+        # Swap: out_player goes back to queue, in_player goes to court
+        courts[n][out_idx] = in_player
+        queue[in_idx] = out_player
+        
+        # Ensure checked_in status is preserved for the player returning to queue
+        # They should remain checked in so they can play next game
+        out_player["checked_in"] = True
+        in_player.setdefault("checked_in", True)  # Ensure incoming player has it set
+        
+        return jsonify(state())
+
+
 @app.post("/api/deck/reshuffle")
 def reshuffle_deck():
     with lock:
