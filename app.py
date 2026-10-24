@@ -129,36 +129,36 @@ def pick_group():
     if sum(len(u) for u in checked) < PLAYERS_PER_GAME:
         return None, None
 
-    # Sort checked players by wait time (oldest/longest first)
-    # But deprioritize players who just finished a game
+    # Pure FIFO: sort by join time (earliest first = longest wait time = first picked)
     now = time.time()
-    checked_with_wait = []
+    checked_with_time = []
     for i, p in enumerate(checked):
-        wait_time = now - queue_join_times.get(p["id"], now)
+        join_time = queue_join_times.get(p["id"], now)
         just_finished = just_finished_players.get(p["id"], 0)
         # If just finished (within last 2 seconds), put at bottom of priority
         if now - just_finished < 2:
-            wait_time = -float('inf')  # Lowest priority
-        checked_with_wait.append((wait_time, i, p))
+            join_time = now  # Latest time = lowest priority
+        checked_with_time.append((join_time, i, p))
     
-    checked_with_wait.sort(reverse=True, key=lambda x: x[0])  # longest wait first
+    # Sort by join_time (oldest first = FIFO order)
+    checked_with_time.sort(key=lambda x: x[0])
     
-    # Get priority positions
-    priority_pos = {p["id"]: i for i, (_, _, p) in enumerate(checked_with_wait)}
+    # Get priority positions (earliest join time = position 0)
+    priority_pos = {p["id"]: i for i, (_, _, p) in enumerate(checked_with_time)}
     
     # Build units with their minimum priority (earliest player in the unit)
     units_by_priority = []
     for unit_indices in units:
         # Get players in this unit
         unit_players = [checked[i] for i in unit_indices]
-        # Find minimum priority (highest in the queue) in this unit
+        # Find minimum priority (earliest join time) in this unit
         min_priority = min(priority_pos.get(p["id"], float('inf')) for p in unit_players)
         units_by_priority.append((min_priority, unit_indices))
     
-    # Sort units by priority
+    # Sort units by priority (FIFO order)
     units_by_priority.sort(key=lambda x: x[0])
     
-    # Select units greedily: pick units starting from highest priority (longest wait)
+    # Select units greedily: pick units starting from earliest (FIFO)
     selected_indices = []
     for priority, unit_indices in units_by_priority:
         if len(selected_indices) + len(unit_indices) <= PLAYERS_PER_GAME:
