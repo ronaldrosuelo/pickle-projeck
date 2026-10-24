@@ -111,12 +111,21 @@
       border-radius: 50%; flex-shrink: 0; object-fit: cover; display: block;
       border: 2px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
+    /* Larger players when court is fullscreen */
+    .tv-courts[data-focus="true"] .tv-player img,
+    .tv-courts[data-focus="true"] .tv-player .tv-ph {
+      width: calc(var(--u) * 40); height: calc(var(--u) * 40);
+    }
     .tv-player .tv-ph { background: #f5f5f5; display: flex; align-items: center; justify-content: center; overflow: hidden; }
     .tv-player .tv-ph svg { width: 60%; height: 60%; fill: #bbb; }
     .tv-player-name {
       flex: 1; min-width: 0;
       font: 700 calc(var(--u) * 20)/1.15 var(--font-display); color: #333;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
+    }
+    /* Larger names when court is fullscreen */
+    .tv-courts[data-focus="true"] .tv-player-name {
+      font: 700 calc(var(--u) * 32)/1.15 var(--font-display); color: #333;
     }
 
     /* ── Sidebar ── */
@@ -782,6 +791,9 @@
         
         /* Only focus if the court index is valid */
         const validFocusIdx = (focusIdx >= 0 && focusIdx < data.courts.length) ? focusIdx : -1;
+        
+        /* Set focus attribute for CSS */
+        courtsEl.setAttribute('data-focus', validFocusIdx >= 0 ? 'true' : 'false');
         
         /* Layout grid based on focus mode */
         if (validFocusIdx >= 0) {
