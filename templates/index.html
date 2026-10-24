@@ -98,6 +98,17 @@
     .tile-queue {
       grid-column: 9 / 13;
       grid-row: 3 / 7;
+      max-height: 400px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .tile-queue .tile-head {
+      flex-shrink: 0;
+    }
+    .tile-queue .queue {
+      flex: 1;
+      min-height: 0;
     }
 
     /* Courts — spans 8 cols, tall */

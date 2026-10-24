@@ -372,6 +372,7 @@ button.checkin-on:hover:not(:disabled) {
 .queue {
   list-style: none; margin: 0; padding: 0;
   display: grid; gap: 0.4rem; overflow-y: auto;
+  max-height: 300px;
 }
 .queue li {
   display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;
@@ -559,3 +560,21 @@ body .tv-queue .spot { color: var(--lime-light); }
   border-color: rgba(204,34,0,0.3);
   font-weight: 800;
 }
+
+/* ── Court players: drag to swap teams, replace button ── */
+.court li { position: relative; cursor: grab; }
+.court li > span:first-child { padding-right: 1.7rem; }
+.court li.dragging { opacity: 0.4; }
+.court li.drop-ok { outline: 2px dashed #d6e8b4; outline-offset: 2px; background: rgba(255,255,255,0.2); }
+.court li.swap-pick { outline: 2px solid #f0a04b; outline-offset: 2px; background: rgba(240,160,75,0.25); }
+.court li .icon-btn {
+  position: absolute; top: 0.2rem; right: 0.3rem;
+  padding: 0.05rem 0.4rem; font-size: 0.8rem; line-height: 1.3;
+}
+.replace-list {
+  list-style: none; margin: 0.6rem 0; padding: 0;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem;
+  max-height: 50vh; overflow: auto;
+}
+.replace-list li { display: flex; align-items: center; gap: 0.4rem; }
+.replace-list li button { flex: 1; text-align: left; }
