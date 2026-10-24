@@ -780,8 +780,11 @@
         const focusedCourt = localStorage.getItem('focusedCourt');
         const focusIdx = focusedCourt !== null ? parseInt(focusedCourt) : -1;
         
+        /* Only focus if the court index is valid */
+        const validFocusIdx = (focusIdx >= 0 && focusIdx < data.courts.length) ? focusIdx : -1;
+        
         /* Layout grid based on focus mode */
-        if (focusIdx >= 0) {
+        if (validFocusIdx >= 0) {
           layoutCourts(1); /* Single court fullscreen */
         } else {
           layoutCourts(data.courts.length); /* All courts */
@@ -791,7 +794,7 @@
           const card = document.createElement('div');
           
           /* Hide non-focused courts when in focus mode */
-          if (focusIdx >= 0 && focusIdx !== idx) {
+          if (validFocusIdx >= 0 && validFocusIdx !== idx) {
             card.style.display = 'none';
           }
           

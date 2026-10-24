@@ -103,6 +103,11 @@ function focusCourtOnTV(courtIdx) {
   setTimeout(() => { if (msg.textContent.includes('focused on TV')) msg.textContent = ''; }, 3000);
 }
 
+/* Clear any stale focus on page load */
+window.addEventListener('load', () => {
+  localStorage.removeItem('focusedCourt');
+});
+
 /* Server calls for the new actions. Needs POST /api/courts/<i>/swap and /replace on the Flask side. */
 async function courtAction(path, body) {
   courtDragging = false; dragFrom = null; swapPick = null;
