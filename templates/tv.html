@@ -781,10 +781,22 @@
         const focusedCourt = localStorage.getItem('focusedCourt');
         const focusIdx = focusedCourt !== null ? parseInt(focusedCourt) : -1;
         
+        let visibleCount = 0;
+        data.courts.forEach((c, idx) => {
+          const isVisible = focusIdx < 0 || focusIdx === idx;
+          if (isVisible) visibleCount++;
+        });
+        
+        /* Adjust grid layout when focused */
+        if (focusIdx >= 0) {
+          courtsEl.style.setProperty('--cols', '1');
+          courtsEl.style.setProperty('--rows', '1');
+        }
+        
         data.courts.forEach((c, idx) => {
           const card = document.createElement('div');
           
-          /* If a court is focused, hide others or show only the focused one */
+          /* If a court is focused, hide others */
           if (focusIdx >= 0 && focusIdx !== idx) {
             card.style.display = 'none';
           }
