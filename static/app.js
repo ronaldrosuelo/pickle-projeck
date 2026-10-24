@@ -74,6 +74,7 @@ function renderCourt(players, i, checkedInCount, perGame) {
       button("Team 1 Won", () => openScoreModal(i, 1, players)),
       button("Team 2 Won", () => openScoreModal(i, 2, players)),
       button("🔊 Announce", () => announceCourt(i, players), "quiet", `Announce the players on Court ${i + 1}`),
+      button("📺 Focus", () => focusCourtOnTV(i), "quiet", `Show Court ${i + 1} fullscreen on TV`),
       button("Cancel", () => run(`/api/courts/${i}/finish`, { winner: null }), "quiet")));
   return card;
 }
@@ -92,6 +93,14 @@ function announceCourt(i, p) {
   if (typeof window.announce === "function") {
     window.announce(`Court ${i + 1}. Team 1: ${p[0].name}, ${p[1].name}. Team 2: ${p[2].name}, ${p[3].name}.`);
   }
+}
+
+function focusCourtOnTV(courtIdx) {
+  // Store focused court in localStorage so TV view can read it
+  localStorage.setItem('focusedCourt', String(courtIdx));
+  msg.textContent = `📺 Court ${courtIdx + 1} is now focused on TV display`;
+  // Auto-clear message after 3 seconds
+  setTimeout(() => { if (msg.textContent.includes('focused on TV')) msg.textContent = ''; }, 3000);
 }
 
 /* Server calls for the new actions. Needs POST /api/courts/<i>/swap and /replace on the Flask side. */

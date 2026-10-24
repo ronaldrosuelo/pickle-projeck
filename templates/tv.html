@@ -776,8 +776,19 @@
         layoutCourts(data.courts.length);
         const courtsEl = document.getElementById('courts-container');
         courtsEl.innerHTML = '';
+        
+        /* Check if a court is focused (from index.html) */
+        const focusedCourt = localStorage.getItem('focusedCourt');
+        const focusIdx = focusedCourt !== null ? parseInt(focusedCourt) : -1;
+        
         data.courts.forEach((c, idx) => {
           const card = document.createElement('div');
+          
+          /* If a court is focused, hide others or show only the focused one */
+          if (focusIdx >= 0 && focusIdx !== idx) {
+            card.style.display = 'none';
+          }
+          
           if (!Array.isArray(c) || c.length === 0) {
             card.className = 'tv-court';
             const title = document.createElement('div'); title.className = 'tv-court-title'; title.textContent = `Court ${idx+1}`;
@@ -829,6 +840,21 @@
 
     refresh();
     setInterval(refresh, 500);
+    
+    /* Listen for focus changes from index.html */
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'focusedCourt') {
+        refresh(); /* Re-render courts to show/hide based on new focus */
+      }
+    });
+    
+    /* ESC key to clear focus on TV view */
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        localStorage.removeItem('focusedCourt');
+        refresh();
+      }
+    });
 
     /* ── Standings table — real-time updates ── */
     function updateStandingsDisplay() {
