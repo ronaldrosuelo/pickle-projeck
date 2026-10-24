@@ -130,7 +130,7 @@ def pick_group():
     if sum(len(u) for u in checked) < PLAYERS_PER_GAME:
         return None, None
 
-    # Pure FIFO: sort by join time (earliest first = longest wait time = first picked)
+    # Pure FIFO: sort by join time (earliest first = first in queue)
     now = time.time()
     checked_with_time = []
     for i, p in enumerate(checked):
@@ -159,47 +159,48 @@ def pick_group():
     # Sort units by priority (FIFO order)
     units_by_priority.sort(key=lambda x: x[0])
     
-    # Select units greedily: pick units starting from earliest (FIFO)
-    # But avoid forming the same group as last game
+    # Try to select groups in FIFO order, skipping only if it matches last game
+    for attempt in range(len(units_by_priority)):
+        selected_indices = []
+        # Always start from the first unit and build from there
+        for priority, unit_indices in units_by_priority:
+            if len(selected_indices) + len(unit_indices) <= PLAYERS_PER_GAME:
+                selected_indices.extend(unit_indices)
+                if len(selected_indices) == PLAYERS_PER_GAME:
+                    # Check if this group matches the last game group
+                    selected_ids = set(checked[idx]["id"] for idx in selected_indices)
+                    if selected_ids == last_game_group:
+                        # This is the exact same group as last game
+                        # Remove the first unit and try again with the rest
+                        first_unit = units_by_priority[0]
+                        units_by_priority = units_by_priority[1:] + [first_unit]
+                        break  # Try next iteration
+                    
+                    # Valid group - remove from just_finished tracking and return
+                    for idx in selected_indices:
+                        just_finished_players.pop(checked[idx]["id"], None)
+                    return selected_indices, checked
+        else:
+            # No break occurred, we got a valid group
+            if len(selected_indices) == PLAYERS_PER_GAME:
+                selected_ids = set(checked[idx]["id"] for idx in selected_indices)
+                if selected_ids != last_game_group:
+                    for idx in selected_indices:
+                        just_finished_players.pop(checked[idx]["id"], None)
+                    return selected_indices, checked
+    
+    # If we exhausted all attempts, just return the first valid FIFO group
+    # (allows same group again if necessary to keep game going)
+    units_by_priority_reset = list(units_by_priority)
+    units_by_priority_reset.sort(key=lambda x: x[0])
     selected_indices = []
-    for priority, unit_indices in units_by_priority:
+    for priority, unit_indices in units_by_priority_reset:
         if len(selected_indices) + len(unit_indices) <= PLAYERS_PER_GAME:
             selected_indices.extend(unit_indices)
             if len(selected_indices) == PLAYERS_PER_GAME:
-                # Check if this group matches the last game group
-                selected_ids = set(checked[idx]["id"] for idx in selected_indices)
-                if selected_ids == last_game_group:
-                    # This is the exact same group as last game - skip and try next
-                    selected_indices = selected_indices[:len(selected_indices) - len(unit_indices)]
-                    continue
-                
-                # Valid group - remove from just_finished tracking and return
                 for idx in selected_indices:
                     just_finished_players.pop(checked[idx]["id"], None)
                 return selected_indices, checked
-    
-    # If we have exactly 4 selected and it's not the last group, return it
-    if len(selected_indices) == PLAYERS_PER_GAME:
-        selected_ids = set(checked[idx]["id"] for idx in selected_indices)
-        if selected_ids != last_game_group:
-            for idx in selected_indices:
-                just_finished_players.pop(checked[idx]["id"], None)
-            return selected_indices, checked
-    
-    # If we couldn't get 4 different players from non-just-finished players,
-    # allow just-finished players if absolutely needed
-    if len(selected_indices) < PLAYERS_PER_GAME:
-        # Try to fill remaining spots with just-finished players if needed
-        for priority, unit_indices in units_by_priority:
-            if any(checked[idx]["id"] in just_finished_players for idx in unit_indices):
-                if len(selected_indices) + len(unit_indices) <= PLAYERS_PER_GAME:
-                    selected_indices.extend(unit_indices)
-                    if len(selected_indices) == PLAYERS_PER_GAME:
-                        selected_ids = set(checked[idx]["id"] for idx in selected_indices)
-                        if selected_ids != last_game_group:
-                            for idx in selected_indices:
-                                just_finished_players.pop(checked[idx]["id"], None)
-                            return selected_indices, checked
     
     return None, None
 
