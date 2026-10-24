@@ -776,11 +776,24 @@
         const courtsEl = document.getElementById('courts-container');
         courtsEl.innerHTML = '';
         
-        /* Layout grid based on number of courts */
-        layoutCourts(data.courts.length);
+        /* Check if a court is focused (from index.html) */
+        const focusedCourt = localStorage.getItem('focusedCourt');
+        const focusIdx = focusedCourt !== null ? parseInt(focusedCourt) : -1;
+        
+        /* Layout grid based on focus mode */
+        if (focusIdx >= 0) {
+          layoutCourts(1); /* Single court fullscreen */
+        } else {
+          layoutCourts(data.courts.length); /* All courts */
+        }
         
         data.courts.forEach((c, idx) => {
           const card = document.createElement('div');
+          
+          /* Hide non-focused courts when in focus mode */
+          if (focusIdx >= 0 && focusIdx !== idx) {
+            card.style.display = 'none';
+          }
           
           if (!Array.isArray(c) || c.length === 0) {
             card.className = 'tv-court';
@@ -833,6 +846,21 @@
 
     refresh();
     setInterval(refresh, 500);
+    
+    /* Listen for focus changes from index.html */
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'focusedCourt') {
+        refresh(); /* Re-render courts based on new focus */
+      }
+    });
+    
+    /* ESC key to clear focus on TV view */
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        localStorage.removeItem('focusedCourt');
+        refresh();
+      }
+    });
 
     /* ── Standings table — real-time updates ── */
     function updateStandingsDisplay() {
