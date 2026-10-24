@@ -64,6 +64,25 @@ function renderCourt(players, i, checkedInCount, perGame) {
     start.disabled = checkedInCount < perGame;
     card.append(el("p", { className: "free", textContent: `Free. Needs ${perGame} checked-in players.` }),
       el("div", { className: "court-actions" }, start));
+    
+    // Add drop zone for empty courts
+    card.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      card.classList.add("drag-over");
+    });
+    card.addEventListener("dragleave", () => {
+      card.classList.remove("drag-over");
+    });
+    card.addEventListener("drop", (e) => {
+      e.preventDefault();
+      card.classList.remove("drag-over");
+      const playerId = parseInt(e.dataTransfer.getData("player-id"));
+      if (playerId) {
+        msg.textContent = "Cannot add player to empty court. Start a game first.";
+      }
+    });
+    
     return card;
   }
 
@@ -83,6 +102,30 @@ function renderCourt(players, i, checkedInCount, perGame) {
         }
       }, "quiet", `Show Court ${i + 1} fullscreen on TV`),
       button("Cancel", () => run(`/api/courts/${i}/finish`, { winner: null }), "quiet")));
+  
+  // Add drop zone for busy courts (replace player)
+  card.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    card.classList.add("drag-over");
+  });
+  card.addEventListener("dragleave", () => {
+    card.classList.remove("drag-over");
+  });
+  card.addEventListener("drop", (e) => {
+    e.preventDefault();
+    card.classList.remove("drag-over");
+    const playerId = parseInt(e.dataTransfer.getData("player-id"));
+    if (playerId && players.length > 0) {
+      // Open replace modal with the dragged player as the replacement
+      const queuePlayer = lastState.queue.find(p => p.id === playerId);
+      if (queuePlayer && queuePlayer.checked_in) {
+        // Let user choose who to replace
+        openReplaceModalForDrag(i, queuePlayer);
+      }
+    }
+  });
+  
   return card;
 }
 
@@ -180,6 +223,36 @@ function courtPlayersList(players, courtIdx) {
     ul.append(li);
   });
   return ul;
+}
+
+function openReplaceModalForDrag(courtIdx, inPlayer) {
+  const old = document.getElementById("replace-modal-overlay");
+  if (old) old.remove();
+  
+  const court = lastState ? lastState.courts[courtIdx] : [];
+  const close = button("✕", () => overlay.remove());
+  close.className = "modal-close";
+
+  const body = court.length
+    ? el("ul", { className: "replace-list" }, ...court.map((p) => {
+        const b = button(`Replace ${p.name}`, () => {
+          overlay.remove();
+          courtAction(`/api/courts/${courtIdx}/replace`, { out_id: p.id, in_id: inPlayer.id });
+        }, "quiet", `Put ${inPlayer.name} in place of ${p.name}`);
+        return el("li", {}, b);
+      }))
+    : el("p", { textContent: "No players on this court." });
+
+  const modal = el("div", { className: "score-modal" },
+    el("div", { className: "modal-header" },
+      el("h2", { textContent: `Drag ${inPlayer.name} to Court ${courtIdx + 1}` }), close),
+    el("p", { textContent: "Choose who to replace:" }),
+    body);
+  const overlay = el("div", { id: "replace-modal-overlay", className: "modal-overlay" }, modal);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  const onKey = (e) => { if (e.key === "Escape") { overlay.remove(); document.removeEventListener("keydown", onKey); } };
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
 }
 
 function openReplaceModal(courtIdx, outP) {
@@ -299,7 +372,7 @@ function openScoreModal(courtIdx, winner, players) {
 /* Partner-aware deck picker.
  * Treats locked pairs as a single unit so both always appear together.
  * Returns an array of `perGame` player objects, or falls back to random. */
-function pickDeckGroup(queue, perGame) {
+function pickDeckGroup(queue, perGame, queueJoinTimes = null, serverOffset = 0) {
   // Build units: locked pairs count as one unit of size 2
   const seen = new Set();
   const units = [];
@@ -315,10 +388,27 @@ function pickDeckGroup(queue, perGame) {
     }
   }
 
-  // Shuffle units, then pick enough to fill perGame slots
-  const shuffled = [...units].sort(() => Math.random() - 0.5);
+  // Sort units by wait time (longest waiting first) if we have join times
+  if (queueJoinTimes && serverOffset !== undefined) {
+    units.sort((unitA, unitB) => {
+      // Use the first player's wait time for comparison
+      const joinTsA = queueJoinTimes[String(unitA[0].id)];
+      const joinTsB = queueJoinTimes[String(unitB[0].id)];
+      
+      if (joinTsA !== undefined && joinTsB !== undefined) {
+        return joinTsA - joinTsB; // Earliest join time first (longest waiting)
+      }
+      if (joinTsA !== undefined) return -1;
+      if (joinTsB !== undefined) return 1;
+      return 0;
+    });
+  } else {
+    // Fallback to shuffling if no join times
+    units.sort(() => Math.random() - 0.5);
+  }
+
   const picked = [];
-  for (const unit of shuffled) {
+  for (const unit of units) {
     if (picked.length + unit.length <= perGame) {
       picked.push(...unit);
       if (picked.length === perGame) break;
@@ -571,7 +661,7 @@ function render(data) {
     // Just show "Click to reveal" button, don't auto-generate
     const checkedIn = queue.filter(p => p.checked_in);
     const loadBtn = button("Show Next Deck", () => {
-      const deck = pickDeckGroup(checkedIn, per_game);
+      const deck = pickDeckGroup(checkedIn, per_game, queue_join_times, serverOffset);
       currentDeckPlayerIds = deck.map(p => p.id);
       
       function computeTeamSplit(players) {
@@ -630,9 +720,27 @@ function render(data) {
 
   $("#queue-count").textContent = queue.length ? `(${queue.length})` : "";
 
+  // Sort queue by wait time (longest waiting first)
+  const sortedQueue = [...queue].sort((a, b) => {
+    const joinTsA = queue_join_times ? queue_join_times[String(a.id)] : null;
+    const joinTsB = queue_join_times ? queue_join_times[String(b.id)] : null;
+    
+    // If both have join times, sort by oldest first (ascending)
+    if (joinTsA !== null && joinTsB !== null) {
+      return joinTsA - joinTsB;
+    }
+    
+    // If only A has a time, A comes first
+    if (joinTsA !== null) return -1;
+    // If only B has a time, B comes first
+    if (joinTsB !== null) return 1;
+    // If neither has a time, maintain original order
+    return 0;
+  });
+
   $("#queue").replaceChildren(
-    ...(queue.length
-      ? queue.map((p, i) => {
+    ...(sortedQueue.length
+      ? sortedQueue.map((p, i) => {
           const joinTs = queue_join_times && queue_join_times[String(p.id)];
           const waitEl = joinTs ? (() => {
             const elapsed = Math.floor((Date.now() / 1000) - serverOffset - joinTs);
@@ -645,7 +753,7 @@ function render(data) {
             return span;
           })() : null;
 
-          const li = el("li", {},
+          const li = el("li", { draggable: true },
             el("span", { className: "spot", textContent: i + 1 }),
             person(p),
             ...(waitEl ? [waitEl] : []),
@@ -653,6 +761,17 @@ function render(data) {
             partnerButton(p),
             button("Break", () => run(`/api/break/${p.id}`), "quiet", `${p.name} takes a break`),
             button("Leave", () => run(`/api/leave/${p.id}`), "quiet", `Remove ${p.name} from the queue`));
+          
+          // Add drag events for moving to court
+          li.addEventListener("dragstart", (e) => {
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("player-id", p.id);
+            li.classList.add("dragging");
+          });
+          li.addEventListener("dragend", () => {
+            li.classList.remove("dragging");
+          });
+          
           return li;
         })
       : [el("li", { className: "empty", textContent: "No one waiting. Join to get in line." })]));
