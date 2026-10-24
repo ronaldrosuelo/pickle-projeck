@@ -111,11 +111,6 @@
       border-radius: 50%; flex-shrink: 0; object-fit: cover; display: block;
       border: 2px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    /* Larger players when court is fullscreen */
-    .tv-courts[data-focus="true"] .tv-player img,
-    .tv-courts[data-focus="true"] .tv-player .tv-ph {
-      width: calc(var(--u) * 40); height: calc(var(--u) * 40);
-    }
     .tv-player .tv-ph { background: #f5f5f5; display: flex; align-items: center; justify-content: center; overflow: hidden; }
     .tv-player .tv-ph svg { width: 60%; height: 60%; fill: #bbb; }
     .tv-player-name {
@@ -123,9 +118,17 @@
       font: 700 calc(var(--u) * 20)/1.15 var(--font-display); color: #333;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
     }
-    /* Larger names when court is fullscreen */
+    /* When fullscreen - scale EVERYTHING uniformly */
+    .tv-courts[data-focus="true"] .tv-player {
+      gap: calc(var(--u) * 4);
+    }
+    .tv-courts[data-focus="true"] .tv-player img,
+    .tv-courts[data-focus="true"] .tv-player .tv-ph {
+      width: calc(var(--u) * 28); height: calc(var(--u) * 28);
+      border: 3px solid #ddd;
+    }
     .tv-courts[data-focus="true"] .tv-player-name {
-      font: 700 calc(var(--u) * 32)/1.15 var(--font-display); color: #333;
+      font: 700 calc(var(--u) * 26)/1.15 var(--font-display);
     }
 
     /* ── Sidebar ── */
