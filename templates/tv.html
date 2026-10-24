@@ -70,6 +70,10 @@
       text-shadow: 0 1px 3px rgba(0,0,0,0.15);
     }
     .tv-court.busy .tv-court-title { color: #900000; text-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+    /* When fullscreen - extra large COURT title */
+    .tv-courts[data-focus="true"] .tv-court-title {
+      font: 800 5rem/1 var(--font-display); letter-spacing: 0.05em;
+    }
     .tv-timer {
       font: 900 calc(var(--u) * 13)/1 var(--font-display); letter-spacing: 0.06em;
       color: #fff; background: rgba(0,0,0,0.45);
@@ -128,7 +132,7 @@
       border: 4px solid #ddd;
     }
     .tv-courts[data-focus="true"] .tv-player-name {
-      font: 700 3rem/1.15 var(--font-display);
+      font: 700 4rem/1.15 var(--font-display);
     }
 
     /* ── Sidebar ── */
