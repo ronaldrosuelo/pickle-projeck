@@ -88,7 +88,6 @@
       min-width: 3.5rem;
       text-align: center;
     }
-    /* Turn red after 20 minutes */
     .tv-timer.overtime {
       color: #ff6b6b;
       border-color: rgba(255,107,107,0.7);
@@ -103,37 +102,44 @@
       display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem;
     }
     .tv-team {
-      display: flex; flex-direction: column; align-items: center;
-      justify-content: space-evenly; padding: 0.5rem 0.3rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+      padding: 0.5rem;
       background: #fff;
       border: 1px solid #eee;
-      border-radius: 8px; overflow: hidden; min-height: 0;
+      border-radius: 8px;
     }
+
+    /* ── Team colors: Team 1 = soft green, Team 2 = soft orange (complementary) ── */
+    .tv-team.team-1 { background: linear-gradient(180deg, #eaf7e4, #d4edc7); border: 1px solid #a9d495; }
+    .tv-team.team-2 { background: linear-gradient(180deg, #fff1e2, #ffddb8); border: 1px solid #f2b878; }
+    .tv-team.team-1 .tv-team-label { color: #2f6b1f; }
+    .tv-team.team-2 .tv-team-label { color: #b45a00; }
+    .tv-team.team-1 .tv-player img, .tv-team.team-1 .tv-player .tv-ph { border-color: #7fbf63; }
+    .tv-team.team-2 .tv-player img, .tv-team.team-2 .tv-player .tv-ph { border-color: #f0a04b; }
+
     .tv-team-label {
-      font: 700 0.75rem/1 var(--font-display); letter-spacing: 0.1em;
+      font: 700 0.8rem/1 var(--font-display); letter-spacing: 0.1em;
       text-transform: uppercase; color: #666; flex-shrink: 0;
-      text-shadow: none;
     }
     .tv-player {
-      display: flex; flex-direction: column; align-items: center;
-      justify-content: center; gap: 0.3rem; width: 100%; flex: 1; min-height: 0;
+      display: flex; align-items: center; gap: 0.75rem;
+      width: 100%;
     }
     .tv-player img, .tv-player .tv-ph {
-      width: var(--av, 3rem); height: var(--av, 3rem);
+      width: 2.5rem; height: 2.5rem;
       border-radius: 50%; flex-shrink: 0; object-fit: cover; display: block;
-      border: 2px solid #ddd; box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      border: 2px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     .tv-player .tv-ph {
       background: #f5f5f5;
       display: flex; align-items: center; justify-content: center; overflow: hidden;
     }
-    .tv-player .tv-ph svg { width: 56%; height: 56%; fill: #bbb; }
+    .tv-player .tv-ph svg { width: 60%; height: 60%; fill: #bbb; }
     .tv-player-name {
-      font: 700 1.15rem/1.2 var(--font-display); color: #333;
-      text-shadow: none; text-align: center;
+      font: 700 1rem/1.2 var(--font-display); color: #333;
+      text-shadow: none; text-align: left;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      width: 100%; padding: 0 0.15rem;
-      font-weight: bold;
+      flex: 1;
     }
 
     /* ── Sidebar ── */
@@ -165,19 +171,15 @@
     .rank-1 .name-col { color: var(--maroon); }
     .rank-2 .name-col { color: var(--ink-soft); }
     .rank-3 .name-col { color: var(--leather); }
-    .tv-queue { list-style: none; margin: 0; padding: 0.25rem 0.45rem; overflow-y: auto; max-height: 32%; flex-shrink: 0; }
+
+    /* ── Up Next deck list ── */
+    .tv-queue { list-style: none; margin: 0; padding: 0.25rem 0.45rem; overflow-y: auto; max-height: 40%; flex-shrink: 0; }
     .tv-queue li {
       display: flex; align-items: center; gap: 0.35rem;
-      padding: 0.18rem 0.2rem; font-size: 0.8rem; color: var(--ink);
+      padding: 0.18rem 0.3rem; font-size: 0.8rem; color: var(--ink);
       border-bottom: 1px solid var(--beige-dark);
     }
     .tv-queue li:last-child { border-bottom: none; }
-    .tv-queue .spot {
-      width: 1.2rem; height: 1.2rem; border-radius: 50%;
-      background: linear-gradient(180deg, var(--maroon-mid), var(--maroon-dark));
-      border: 1px solid var(--maroon-dark); display: grid; place-items: center;
-      font: 700 0.62rem/1 var(--font-display); flex-shrink: 0; color: var(--beige-light);
-    }
     .tv-queue img, .tv-queue .tv-qph {
       width: 1.35rem; height: 1.35rem; border-radius: 50%;
       object-fit: cover; flex-shrink: 0; border: 1px solid var(--beige-dark);
@@ -187,25 +189,27 @@
       display: flex; align-items: center; justify-content: center;
       font: 700 0.55rem var(--font-display); color: var(--beige-light);
     }
-
-    /* Wait timer in queue list */
-    .tv-wait-timer {
+    /* Deck rows tinted by team (same colors as the courts) */
+    .tv-queue li.deck-t1 { background: #e3f3da; border-left: 4px solid #7fbf63; }
+    .tv-queue li.deck-t2 { background: #ffe9d0; border-left: 4px solid #f0a04b; }
+    .tv-queue .spot {
+      width: 1.2rem; height: 1.2rem; border-radius: 50%;
+      background: linear-gradient(180deg, var(--maroon-mid), var(--maroon-dark));
+      border: 1px solid var(--maroon-dark); display: grid; place-items: center;
+      font: 700 0.62rem/1 var(--font-display); flex-shrink: 0; color: #fff;
+    }
+    .tv-queue li.deck-t1 .spot { background: linear-gradient(180deg, #5aa63f, #2f6b1f); border-color: #2f6b1f; }
+    .tv-queue li.deck-t2 .spot { background: linear-gradient(180deg, #f59a2e, #b45a00); border-color: #b45a00; }
+    .tv-queue .deck-name { font-weight: 700; }
+    .tv-queue .deck-team-tag {
       margin-left: auto; flex-shrink: 0;
-      font: 700 0.68rem/1 var(--font-display);
-      color: rgba(107,0,32,0.7);
-      background: rgba(107,0,32,0.08);
-      border: 1px solid rgba(107,0,32,0.2);
-      border-radius: 4px; padding: 0.1rem 0.3rem;
-      font-variant-numeric: tabular-nums;
+      font: 700 0.6rem/1 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase;
+      opacity: 0.75;
     }
-    .tv-wait-timer.wait-long {
-      color: #cc2200; background: rgba(204,34,0,0.1);
-      border-color: rgba(204,34,0,0.35);
-      font-weight: 800;
-    }
+    li.deck-t1 .deck-team-tag { color: #2f6b1f; }
+    li.deck-t2 .deck-team-tag { color: #b45a00; }
 
-    /* ── Full-screen Now Playing splash ──────────────────────────────────── */
-    /* Uses visibility+opacity so it never collapses out of the stacking context */
+    /* ── Full-screen Now Playing splash ── */
     #popup-overlay {
       position: fixed; inset: 0; z-index: 9999;
       display: flex; align-items: center; justify-content: center;
@@ -246,6 +250,9 @@
       background: rgba(0,0,0,0.22); border: 1px solid rgba(245,225,185,0.15);
       border-radius: 18px; padding: 1.8rem 1.5rem;
     }
+    /* Team colors in the popup */
+    #popup-team1-wrap { background: rgba(110,190,80,0.28); border-color: rgba(170,230,140,0.45); }
+    #popup-team2-wrap { background: rgba(240,150,50,0.26); border-color: rgba(255,200,130,0.45); }
     .popup-team-label {
       font: 800 0.9rem/1 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase;
       color: var(--beige); text-shadow: 0 1px 3px rgba(0,0,0,0.4);
@@ -316,7 +323,6 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       padding: 1.5rem 2rem; position: relative;
     }
-    /* Subtle texture overlay */
     #podium-inner::before {
       content: ""; position: absolute; inset: 0; pointer-events: none;
       background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(180,40,60,0.18) 0%, transparent 70%);
@@ -331,20 +337,15 @@
       font: 700 0.9rem/1 var(--font-display); letter-spacing: 0.3em; text-transform: uppercase;
       color: rgba(245,225,185,0.45); text-shadow: 0 1px 4px rgba(0,0,0,0.5);
     }
-
-    /* Stage: 2nd | 1st | 3rd */
     #podium-stage {
       display: flex; align-items: flex-end; justify-content: center;
       gap: 1.2rem; position: relative; z-index: 1;
       width: 100%; max-width: 900px;
     }
-
-    /* Each slot: avatar+name on top, block on bottom */
     .podium-slot {
       display: flex; flex-direction: column; align-items: center; gap: 0;
       flex: 1; max-width: 260px;
     }
-
     .podium-avatar-wrap {
       display: flex; flex-direction: column; align-items: center;
       margin-bottom: 0.7rem; position: relative;
@@ -361,18 +362,15 @@
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
     }
-    /* 1st place bigger avatar */
     #podium-1st .podium-avatar { width: clamp(6rem,12vh,11rem); height: clamp(6rem,12vh,11rem); }
     #podium-2nd .podium-avatar,
     #podium-3rd .podium-avatar { width: clamp(4.5rem,9vh,8.5rem); height: clamp(4.5rem,9vh,8.5rem); }
-    /* Gold ring for 1st */
     .podium-avatar-gold {
       border-color: #f0c040 !important;
       box-shadow: 0 4px 24px rgba(0,0,0,0.6), 0 0 0 3px rgba(240,192,64,0.35), 0 0 28px rgba(240,192,64,0.25) !important;
     }
     .podium-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .podium-avatar svg { width: 52%; height: 52%; fill: rgba(245,225,185,0.8); }
-
     .podium-name {
       font: 800 1.35rem/1.15 var(--font-display); color: var(--beige-light);
       text-align: center; text-shadow: 0 2px 8px rgba(0,0,0,0.55);
@@ -384,8 +382,6 @@
       text-shadow: 0 1px 4px rgba(0,0,0,0.4); margin-bottom: 0.7rem;
     }
     #podium-1st .podium-pts { color: #f0c040; font-size: 1.1rem; }
-
-    /* Podium blocks */
     .podium-block {
       width: 100%; border-radius: 12px 12px 0 0;
       display: flex; align-items: center; justify-content: center;
@@ -409,7 +405,6 @@
       border: 1px solid #904828;
       box-shadow: 0 1px 0 rgba(220,160,100,0.4) inset, 0 -2px 0 rgba(0,0,0,0.4) inset;
     }
-    /* Stitch line on blocks */
     .podium-block::before {
       content: ""; position: absolute; inset: 5px;
       border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px 8px 0 0;
@@ -421,8 +416,6 @@
       position: relative; z-index: 1;
     }
     .podium-rank-num sup { font-size: 0.65em; vertical-align: super; }
-
-    /* Close button */
     #podium-close {
       position: absolute; top: 1.2rem; right: 1.5rem; z-index: 2;
       font: 700 0.78rem/1 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase;
@@ -436,7 +429,7 @@
 </head>
 <body>
 
-  <!-- Full-screen popup — OUTSIDE body flow, z-index 9999 -->
+  <!-- Full-screen popup -->
   <div id="popup-overlay">
     <div id="popup">
       <div id="popup-court">Court 1</div>
@@ -464,7 +457,6 @@
         <div id="podium-subtitle">Leaderboard</div>
       </div>
       <div id="podium-stage">
-        <!-- 2nd place -->
         <div class="podium-slot" id="podium-2nd">
           <div class="podium-avatar-wrap">
             <div class="podium-medal">🥈</div>
@@ -476,7 +468,6 @@
             <span class="podium-rank-num">2<sup>nd</sup></span>
           </div>
         </div>
-        <!-- 1st place -->
         <div class="podium-slot" id="podium-1st">
           <div class="podium-avatar-wrap">
             <div class="podium-medal">🥇</div>
@@ -488,7 +479,6 @@
             <span class="podium-rank-num">1<sup>st</sup></span>
           </div>
         </div>
-        <!-- 3rd place -->
         <div class="podium-slot" id="podium-3rd">
           <div class="podium-avatar-wrap">
             <div class="podium-medal">🥉</div>
@@ -534,7 +524,7 @@
           </tbody>
         </table>
       </div>
-      <div class="tv-queue-title">Waiting</div>
+      <div class="tv-queue-title">Up Next</div>
       <ol class="tv-queue" id="queue-list"></ol>
       <div style="padding:0.5rem 0.65rem; flex-shrink:0;">
         <button id="podium-btn" onclick="showPodium()">🏆 Top 3</button>
@@ -552,40 +542,31 @@
       {% endif %}
     ];
 
-    /* ────────────────────────────────────────────────────────────────────────
-       State
-    ──────────────────────────────────────────────────────────────────────── */
+    /* ── State ── */
     let prevCourts = null;
     let popupTimer = null;
     let popupId    = 0;
     let soundUnlocked = false;
-    let podiumData = [];  // start empty, only populate after first game
-    let hasAnyResult = false;  // track if any game has finished
-    let courtStartTimes = {};  // court index (str) -> server unix timestamp
-    let serverTimeOffset = 0;  // diff between server time and client time (ms)
+    let podiumData = [];
+    let hasAnyResult = false;
+    let courtStartTimes = {};
+    let serverTimeOffset = 0;
+    let lastQueueIds = new Set();   // ids currently in queue (used to filter the Up Next deck)
 
-    /* ── 1-second tick: update ALL court timers and queue wait timers ── */
     function fmtTime(seconds) {
       const m = Math.floor(Math.max(0, seconds) / 60);
       const s = Math.floor(Math.max(0, seconds) % 60);
       return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     }
 
+    /* ── 1-second tick: court timers ── */
     function tickTimers() {
       const now = (Date.now() / 1000) - serverTimeOffset;
-      // Court timers
       document.querySelectorAll('.tv-timer[data-start]').forEach(el => {
         const startTs = parseFloat(el.dataset.start);
         const elapsed = Math.floor(now - startTs);
         el.textContent = fmtTime(elapsed);
         el.classList.toggle('overtime', elapsed >= 20 * 60);
-      });
-      // Queue wait timers
-      document.querySelectorAll('.tv-wait-timer[data-start]').forEach(el => {
-        const startTs = parseFloat(el.dataset.start);
-        const elapsed = Math.floor(now - startTs);
-        el.textContent = fmtTime(elapsed);
-        el.classList.toggle('wait-long', elapsed >= 15 * 60);
       });
     }
     setInterval(tickTimers, 1000);
@@ -603,15 +584,12 @@
     document.addEventListener('keydown', unlockSound, { once: true });
     document.addEventListener('touchstart', unlockSound, { once: true });
 
-    /* ── Preload voices ── */
     if ('speechSynthesis' in window) {
       window.speechSynthesis.getVoices();
       window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
     }
 
-    /* ── Speech engine ──
-       Single keepalive + token so stale callbacks never fire.
-    ── */
+    /* ── Speech engine ── */
     let _ttsKeepalive = null;
     let _ttsTok = 0;
 
@@ -704,20 +682,16 @@
       requestAnimationFrame(step);
     }
 
-    /* ── Court size vars ── */
     function courtSizeVars(n) {
       const rows = Math.ceil(n / 2);
       return `--av:${Math.max(4, Math.round(22/rows))}vh; --fn:${Math.max(0.55, 1.05-(rows-1)*0.13).toFixed(2)}rem;`;
     }
 
-    /* ══════════════════════════════════════════════════════════════════════
-       showPopup — the core function
-    ══════════════════════════════════════════════════════════════════════ */
+    /* ── Now Playing popup ── */
     function showPopup(courtIdx, players) {
       const myId = ++popupId;
       if (popupTimer) { clearTimeout(popupTimer); popupTimer = null; }
 
-      /* Fill in player names + avatars */
       document.getElementById('popup-court').textContent = `Court ${courtIdx + 1}`;
       const t1 = document.getElementById('popup-team1');
       const t2 = document.getElementById('popup-team2');
@@ -727,24 +701,59 @@
       t2.appendChild(popupPlayerEl(players[2]));
       t2.appendChild(popupPlayerEl(players[3]));
 
-      /* Show overlay */
       const overlay = document.getElementById('popup-overlay');
       overlay.classList.add('show');
-
-      /* Animate bar */
       animateBar();
 
-      /* Speech */
       const txt = `Court ${courtIdx+1}. Team 1: ${players[0].name}, ${players[1].name}. ` +
                   `Team 2: ${players[2].name}, ${players[3].name}.`;
 
       function hide() { if (myId === popupId) overlay.classList.remove('show'); }
-
       speak(txt, hide);
-
-      /* Fallback: hide after 30s if speech events don't fire */
       popupTimer = setTimeout(hide, 30000);
     }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       Up Next deck — shared from the index page via localStorage ("pickleDeck")
+       Order saved by index: Team 1 (2 players) then Team 2 (2 players)
+    ══════════════════════════════════════════════════════════════════════ */
+    function renderUpNext() {
+      const qEl = document.getElementById('queue-list');
+      let deck = [];
+      try {
+        const raw = localStorage.getItem('pickleDeck');
+        if (raw) deck = (JSON.parse(raw).players || []);
+      } catch (e) { deck = []; }
+
+      /* Drop anyone who is no longer in the waiting queue (e.g. already sent to a court) */
+      if (lastQueueIds.size) deck = deck.filter(p => lastQueueIds.has(p.id));
+
+      /* Re-render only when something changed (avoids flicker at 500ms polling) */
+      const sig = deck.map(p => p.id + ':' + p.name + ':' + (p.avatar || '')).join('|');
+      if (qEl.dataset.sig === sig) return;
+      qEl.dataset.sig = sig;
+
+      qEl.innerHTML = '';
+      if (!deck.length) {
+        qEl.innerHTML = '<li style="color:var(--ink-muted);font-style:italic;padding:0.15rem 0.2rem">No deck yet.</li>';
+        return;
+      }
+      deck.forEach((p, i) => {
+        const team = i < 2 ? 1 : 2;
+        const li = document.createElement('li');
+        li.className = `deck-t${team}`;
+        const spot = document.createElement('span'); spot.className = 'spot'; spot.textContent = i + 1;
+        li.appendChild(spot);
+        li.appendChild(makeAvatar(p, 'tv-qph'));
+        const ns = document.createElement('span'); ns.className = 'deck-name'; ns.textContent = ' ' + p.name;
+        li.appendChild(ns);
+        const tag = document.createElement('span'); tag.className = 'deck-team-tag'; tag.textContent = `Team ${team}`;
+        li.appendChild(tag);
+        qEl.appendChild(li);
+      });
+    }
+    /* Instant update when the index page changes the deck */
+    window.addEventListener('storage', (e) => { if (e.key === 'pickleDeck') renderUpNext(); });
 
     /* ══════════════════════════════════════════════════════════════════════
        Main refresh loop
@@ -753,7 +762,6 @@
       try {
         const data = await fetch('/api/state').then(r => r.json());
 
-        /* Update court start times + server time offset */
         courtStartTimes = data.court_start_times || {};
         if (data.server_time) {
           serverTimeOffset = (Date.now() / 1000) - data.server_time;
@@ -786,12 +794,10 @@
             const title = document.createElement('div');
             title.className = 'tv-court-title';
 
-            // Court name (left side)
             const courtName = document.createElement('span');
             courtName.textContent = `Court ${idx + 1}`;
             title.appendChild(courtName);
 
-            // Timer badge (right side) — use data-start so tickTimers can find it
             const timer = document.createElement('span');
             timer.className = 'tv-timer';
             timer.id = `court-timer-${idx}`;
@@ -808,8 +814,9 @@
 
             card.appendChild(title);
             const teams = document.createElement('div'); teams.className = 'tv-teams';
-            [[c[0],c[1],'Team 1'],[c[2],c[3],'Team 2']].forEach(([pa,pb,lbl]) => {
-              const team = document.createElement('div'); team.className = 'tv-team';
+            [[c[0],c[1],'Team 1'],[c[2],c[3],'Team 2']].forEach(([pa,pb,lbl], ti) => {
+              const team = document.createElement('div');
+              team.className = 'tv-team team-' + (ti + 1);
               const l = document.createElement('div'); l.className = 'tv-team-label'; l.textContent = lbl;
               team.appendChild(l); team.appendChild(playerEl(pa)); team.appendChild(playerEl(pb));
               teams.appendChild(team);
@@ -819,50 +826,22 @@
           courtsEl.appendChild(card);
         });
 
-        /* Render waiting queue */
-        const qEl = document.getElementById('queue-list');
-        qEl.innerHTML = '';
-        if (!data.queue.length) {
-          qEl.innerHTML = '<li style="color:var(--ink-muted);font-style:italic;padding:0.15rem 0.2rem">No one waiting.</li>';
-        } else {
-          data.queue.forEach((p, i) => {
-            const li = document.createElement('li');
-            const spot = document.createElement('span'); spot.className = 'spot'; spot.textContent = i+1;
-            li.appendChild(spot);
-            li.appendChild(makeAvatar(p, 'tv-qph'));
-            const ns = document.createElement('span'); ns.textContent = ' '+p.name;
-            li.appendChild(ns);
-
-            // Wait timer
-            const joinTs = (data.queue_join_times || {})[String(p.id)];
-            if (joinTs) {
-              const wt = document.createElement('span');
-              wt.className = 'tv-wait-timer';
-              wt.dataset.start = joinTs;
-              const elapsed = Math.floor((Date.now() / 1000) - serverTimeOffset - joinTs);
-              wt.textContent = fmtTime(elapsed);
-              if (elapsed >= 15 * 60) wt.classList.add('wait-long');
-              li.appendChild(wt);
-            }
-
-            qEl.appendChild(li);
-          });
-        }
+        /* Up Next deck (from the index page's deck) */
+        lastQueueIds = new Set((data.queue || []).map(p => p.id));
+        renderUpNext();
       } catch(err) { console.error('TV refresh error:', err); }
     }
 
     refresh();
-    setInterval(refresh, 500);  /* 500ms polling for courts & queue */
+    setInterval(refresh, 500);
 
-    /* ════════════════════════════════════════════════════════════════════
-       Update Standings Display — real-time table updates
-    ════════════════════════════════════════════════════════════════════ */
+    /* ── Standings table — real-time updates ── */
     function updateStandingsDisplay() {
       const tbody = document.querySelector('.tv-standings table tbody');
       if (!tbody) return;
-      
-      tbody.innerHTML = '';  // clear old rows
-      
+
+      tbody.innerHTML = '';
+
       podiumData.forEach((p, idx) => {
         const tr = document.createElement('tr');
         tr.className = `rank-${idx + 1}`;
@@ -875,7 +854,7 @@
         `;
         tbody.appendChild(tr);
       });
-      
+
       if (podiumData.length === 0) {
         const tr = document.createElement('tr');
         tr.innerHTML = '<td colspan="5" style="text-align:center;color:var(--ink-muted);">No games yet.</td>';
@@ -883,22 +862,19 @@
       }
     }
 
-    /* ════════════════════════════════════════════════════════════════════
-       Standings — real-time via SSE stream
-    ════════════════════════════════════════════════════════════════════ */
+    /* ── Standings — real-time via SSE stream ── */
     function listenStandingsStream() {
       const es = new EventSource('/api/standings-stream');
       es.onmessage = (e) => {
         try {
           const data = JSON.parse(e.data);
           const standings = data.standings || data;
-          
-          // Update standings data for display
+
           if (standings && standings.length >= 0) {
             podiumData = standings;
-            updateStandingsDisplay();  // update the standings table, NOT the podium
+            updateStandingsDisplay();
           }
-          
+
           if (data.server_time) {
             serverTimeOffset = (Date.now() / 1000) - data.server_time;
           }
@@ -909,15 +885,12 @@
       es.onerror = () => {
         console.warn('SSE connection lost, reconnecting...');
         es.close();
-        setTimeout(listenStandingsStream, 2000);  // reconnect after 2s
+        setTimeout(listenStandingsStream, 2000);
       };
     }
     listenStandingsStream();
 
-    /* ════════════════════════════════════════════════════════════════════
-       Podium — shows top 3 players from live standings
-    ════════════════════════════════════════════════════════════════════ */
-
+    /* ── Podium — top 3 from live standings ── */
     function podiumAvatar(container, p) {
       container.innerHTML = '';
       if (p && p.avatar) {
@@ -934,11 +907,8 @@
 
     function showPodium() {
       const overlay = document.getElementById('podium-overlay');
-
-      // Use latest standings data from the last refresh
       const top3 = podiumData.slice(0, 3);
 
-      // Slot order: 2nd (left), 1st (center), 3rd (right)
       const slots = [
         { idx: 1, nameEl: 'podium-name-2', ptsEl: 'podium-pts-2', avEl: 'podium-avatar-2', slot: '#podium-2nd' },
         { idx: 0, nameEl: 'podium-name-1', ptsEl: 'podium-pts-1', avEl: 'podium-avatar-1', slot: '#podium-1st' },
@@ -972,7 +942,6 @@
     document.getElementById('podium-close').addEventListener('click', () => {
       document.getElementById('podium-overlay').classList.remove('show');
     });
-    // Also close on backdrop click
     document.getElementById('podium-overlay').addEventListener('click', (e) => {
       if (e.target === document.getElementById('podium-overlay') ||
           e.target === document.getElementById('podium-inner')) {
