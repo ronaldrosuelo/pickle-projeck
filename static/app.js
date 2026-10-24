@@ -26,6 +26,7 @@ let pending = null;
 let deckLoaded = false;
 let currentDeckPlayerIds = [];  // Store just IDs, not full objects
 let currentDeckTeamSplit = null;  // Store the locked team assignment
+let deckSentJustNow = false;  // Flag to prevent auto-gen right after sending to court
 let prevCourts = null; // null = first render, don't announce yet
 
 const person = (p) => {
@@ -498,6 +499,8 @@ function renderDeckInner(queue, perGame, courts) {
         await run(`/api/courts/${index}/start`, { player_ids: currentDeckPlayerIds });
         deckLoaded = false;
         currentDeckPlayerIds = [];
+        currentDeckTeamSplit = null;
+        deckSentJustNow = true;  // Prevent auto-gen on next render
       }, "", `Send deck to Court ${index + 1}`);
       actionsContainer.append(assignBtn);
     }
@@ -533,8 +536,49 @@ function render(data) {
   const { queue, courts, breaks, per_game, max_courts, checked_in_count,
           queue_join_times, server_time } = data;
 
+  // If deck was just sent, don't auto-generate a new one
+  const skipDeckRegeneration = deckSentJustNow;
+  deckSentJustNow = false;  // Reset flag
+
   // Compute client↔server time offset once per render
   const serverOffset = server_time ? (Date.now() / 1000) - server_time : 0;
+
+  // If deck was just sent to court, don't auto-show a new one
+  if (skipDeckRegeneration && !deckLoaded) {
+    // Just show "Click to reveal" button, don't auto-generate
+    const checkedIn = queue.filter(p => p.checked_in);
+    const loadBtn = button("Show Next Deck", () => {
+      const deck = pickDeckGroup(checkedIn, per_game);
+      currentDeckPlayerIds = deck.map(p => p.id);
+      
+      function computeTeamSplit(players) {
+        const [a, b, c, d] = players;
+        const opts = [[[a,b],[c,d]], [[a,c],[b,d]], [[a,d],[b,c]]];
+        const valid = opts.filter(([t1, t2]) => {
+          const ok = (team) => team.every(p =>
+            !p.partner_id || team.some(q => q.id === p.partner_id)
+          );
+          return ok(t1) && ok(t2);
+        });
+        const chosen = valid.length ? valid[Math.floor(Math.random() * valid.length)] : opts[0];
+        return chosen.map(team => team.map(p => p.id));
+      }
+      
+      currentDeckTeamSplit = computeTeamSplit(currentDeckPlayerIds.map(id => queue.find(p => p.id === id)));
+      deckLoaded = true;
+      render(lastState);
+    }, "", "Show the next group of players");
+    loadBtn.disabled = checkedIn.length < per_game;
+
+    $("#deck").replaceChildren(
+      el("div", { className: "court deck-card" },
+        el("div", { className: "court-head" }, el("h3", { textContent: "Up next deck" })),
+        el("p", { className: "deck-empty", textContent: "Click below to reveal a random group." }),
+        el("div", { className: "court-actions", style: "margin-top: 0.6rem;" }, loadBtn)
+      )
+    );
+    return;
+  }
 
   names = new Map([...queue, ...courts.flat(), ...breaks].map((p) => [p.id, p.name]));
   if (pending && !queue.some((p) => p.id === pending && !p.partner_id)) pending = null;
