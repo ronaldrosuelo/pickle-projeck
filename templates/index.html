@@ -312,7 +312,7 @@
       const voices = window.speechSynthesis.getVoices();
       const idx = parseInt(voiceSelect.value);
       const utter = new SpeechSynthesisUtterance('Court 1. Team 1: Ronald, Jasper. Team 2: Janeth, Mabby.');
-      utter.rate = 0.9; utter.volume = 1.0;
+      utter.rate = 1.0; utter.volume = 1.0;
       if (voices[idx]) utter.voice = voices[idx];
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utter);
@@ -364,7 +364,7 @@
 
       function makeU(t, cb) {
         const u = new SpeechSynthesisUtterance(t);
-        u.rate = 0.88; u.pitch = 1.0; u.volume = 1.0;
+        u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
         if (voice) u.voice = voice;
         if (cb) u.onend = () => { if (_ttsTok === tok) cb(); };
         return u;

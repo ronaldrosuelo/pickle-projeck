@@ -598,7 +598,7 @@
 
       function mkU(t, cb) {
         const u = new SpeechSynthesisUtterance(t);
-        u.rate = 0.88; u.pitch = 1.0; u.volume = 1.0;
+        u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
         if (voice) u.voice = voice;
         if (cb) u.onend = () => { if (_ttsTok === tok) cb(); };
         return u;
