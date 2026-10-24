@@ -22,6 +22,7 @@ courts = [[], []]  # each court: [team1_a, team1_b, team2_a, team2_b] or []
 court_start_times = {}  # court_index -> unix timestamp (float) when game started
 queue_join_times  = {}  # player_id   -> unix timestamp (float) when joined queue
 just_finished_players = {}  # player_id -> timestamp when they just finished a game
+last_game_group = set()  # Track the last 4 players who played together to avoid immediate rematch
 results = {}  # name_lower -> {"w": 0, "l": 0}
 game_history = []  # List of completed games with details: [{"court": n, "team1": [...], "team2": [...], "winner": 1|2, "score1": s1, "score2": s2}, ...]
 together = {}  # (name_a, name_b) -> games in the same game
@@ -159,17 +160,33 @@ def pick_group():
     units_by_priority.sort(key=lambda x: x[0])
     
     # Select units greedily: pick units starting from earliest (FIFO)
+    # But avoid forming the same group as last game
     selected_indices = []
     for priority, unit_indices in units_by_priority:
         if len(selected_indices) + len(unit_indices) <= PLAYERS_PER_GAME:
             selected_indices.extend(unit_indices)
             if len(selected_indices) == PLAYERS_PER_GAME:
-                # Remove from just_finished tracking once they're picked
+                # Check if this group matches the last game group
+                selected_ids = set(checked[idx]["id"] for idx in selected_indices)
+                if selected_ids == last_game_group:
+                    # This is the exact same group as last game - skip and try next
+                    selected_indices = selected_indices[:len(selected_indices) - len(unit_indices)]
+                    continue
+                
+                # Valid group - remove from just_finished tracking and return
                 for idx in selected_indices:
                     just_finished_players.pop(checked[idx]["id"], None)
                 return selected_indices, checked
     
-    # If we couldn't get 4 players from non-just-finished players,
+    # If we have exactly 4 selected and it's not the last group, return it
+    if len(selected_indices) == PLAYERS_PER_GAME:
+        selected_ids = set(checked[idx]["id"] for idx in selected_indices)
+        if selected_ids != last_game_group:
+            for idx in selected_indices:
+                just_finished_players.pop(checked[idx]["id"], None)
+            return selected_indices, checked
+    
+    # If we couldn't get 4 different players from non-just-finished players,
     # allow just-finished players if absolutely needed
     if len(selected_indices) < PLAYERS_PER_GAME:
         # Try to fill remaining spots with just-finished players if needed
@@ -178,9 +195,11 @@ def pick_group():
                 if len(selected_indices) + len(unit_indices) <= PLAYERS_PER_GAME:
                     selected_indices.extend(unit_indices)
                     if len(selected_indices) == PLAYERS_PER_GAME:
-                        for idx in selected_indices:
-                            just_finished_players.pop(checked[idx]["id"], None)
-                        return selected_indices, checked
+                        selected_ids = set(checked[idx]["id"] for idx in selected_indices)
+                        if selected_ids != last_game_group:
+                            for idx in selected_indices:
+                                just_finished_players.pop(checked[idx]["id"], None)
+                            return selected_indices, checked
     
     return None, None
 
@@ -829,6 +848,10 @@ def finish(n):
             # Mark when they finished so they won't be picked again immediately
             queue_join_times[p["id"]] = time.time()  # Put them at the back of queue
             just_finished_players[p["id"]] = time.time()  # Mark as just finished
+        
+        # Track this game group to avoid immediate rematch
+        global last_game_group
+        last_game_group = set(p["id"] for p in courts[n])
         courts[n] = []
         court_start_times.pop(n, None)  # clear timer
         broadcast_standings()  # push update to all SSE clients
@@ -1460,7 +1483,7 @@ def tv_display():
 
 @app.post("/api/reset")
 def reset_state():
-    global next_id
+    global next_id, last_game_group
     with lock:
         next_id = count(1)
         queue[:] = []
@@ -1474,6 +1497,7 @@ def reset_state():
         together.clear()
         partners.clear()
         locked_with.clear()
+        last_game_group.clear()
         return jsonify(state())
 
 
