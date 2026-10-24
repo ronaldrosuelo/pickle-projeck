@@ -923,11 +923,11 @@ def reclub_import():
         )
         # Fallback: find "Confirmed" text node followed by a grid
         if not conf_match:
-            conf_match = re.search(r'Confirmed\s*[·•·]\s*\d+', resp.text, re.IGNORECASE)
+            conf_match = re.search(r'Confirmed\s*[·•]\s*\d+', resp.text, re.IGNORECASE)
 
         # Find where the Confirmed grid ends (Waitlist section or Open app button)
         end_match = re.search(
-            r'Waitlist\s*[·•·]\s*\d+|class=["\'][^"\']*MeetStatus|Open app',
+            r'Waitlist\s*[·•]\s*\d+|class=["\'][^"\']*MeetStatus|Open app',
             resp.text, re.IGNORECASE
         )
 
