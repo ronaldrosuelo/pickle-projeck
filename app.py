@@ -1061,16 +1061,16 @@ def reclub_import():
         # Extract confirmed player names from the HTML "truncate" class elements
         # These are the most reliable source matching what ReClub displays
         conf_match = re.search(
-            r'<p[^>]*>\s*Confirmed\s*[·•]\s*\d+\s*</p>|Confirmed\s*<span[^>]*>\s*[·•]\s*\d+',
+            r'<p[^>]*>\s*Confirmed\s*[\u00b7\u2022]\s*\d+\s*</p>|Confirmed\s*<span[^>]*>\s*[\u00b7\u2022]\s*\d+',
             resp.text, re.IGNORECASE
         )
         # Fallback: find "Confirmed" text node followed by a grid
         if not conf_match:
-            conf_match = re.search(r'Confirmed\s*[·•]\s*\d+', resp.text, re.IGNORECASE)
+            conf_match = re.search(r'Confirmed\s*[\u00b7\u2022]\s*\d+', resp.text, re.IGNORECASE)
 
         # Find where the Confirmed grid ends (Waitlist section or Open app button)
         end_match = re.search(
-            r'Waitlist\s*[·•]\s*\d+|class=["\'][^"\']*MeetStatus|Open app',
+            r'Waitlist\s*[\u00b7\u2022]\s*\d+|class=["\'][^"\']*MeetStatus|Open app',
             resp.text, re.IGNORECASE
         )
 
