@@ -900,6 +900,7 @@ def reclub_import():
                         continue
                     if item.get("isHost") is not True:
                         continue
+                    # Host found — get their name
                     ref_id = item.get("referenceId")
                     ref_resolved = resolve(ref_id) if isinstance(ref_id, int) else ref_id
                     if users_map_obj and str(ref_resolved) in users_map_obj:
@@ -912,11 +913,9 @@ def reclub_import():
             except Exception:
                 pass
 
-        # Primary method: <p class="...truncate..."> inside the Confirmed section.
-        # This is the most reliable source — it exactly matches what ReClub shows,
-        # including +1 guests who have no ReClub account.
-        # We scope to the Confirmed section to avoid picking up names from
-        # "Hosted By" or Waitlist sections.
+        # Primary method: HTML extraction with host exclusion
+        # Extract confirmed player names from the HTML "truncate" class elements
+        # These are the most reliable source matching what ReClub displays
         conf_match = re.search(
             r'<p[^>]*>\s*Confirmed\s*[·•]\s*\d+\s*</p>|Confirmed\s*<span[^>]*>\s*[·•]\s*\d+',
             resp.text, re.IGNORECASE
@@ -946,7 +945,7 @@ def reclub_import():
             if (text
                     and len(text) >= 1
                     and text.lower() not in seen_lower
-                    and text.lower() not in host_names):   # skip host
+                    and text.lower() not in host_names):   # Explicitly skip host
                 seen_lower.add(text.lower())
                 extracted_names.append(text)
 
@@ -971,6 +970,7 @@ def reclub_import():
                     continue
                 if "referenceId" not in item or "status" not in item:
                     continue
+                # Skip if marked as host
                 if item.get("isHost") is True:
                     continue
                 status_val = item.get("status")
@@ -986,7 +986,8 @@ def reclub_import():
                         name_val = resolve(user_obj.get("name"))
                         if isinstance(name_val, str) and name_val.strip():
                             clean = name_val.strip()[:24]
-                            if clean not in extracted_names:
+                            # Skip if this is the host
+                            if clean.lower() not in host_names and clean not in extracted_names:
                                 extracted_names.append(clean)
 
         # Ultimate fallback: displayName from raw JSON
@@ -997,7 +998,8 @@ def reclub_import():
                 except ValueError:
                     pass
                 clean = raw.strip()[:24]
-                if clean and clean not in extracted_names:
+                # Skip if this is the host
+                if clean and clean.lower() not in host_names and clean not in extracted_names:
                     extracted_names.append(clean)
 
         if not extracted_names:
