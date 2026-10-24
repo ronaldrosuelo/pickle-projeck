@@ -24,7 +24,8 @@ let lastState = null;
 let pending = null;
 
 let deckLoaded = false;
-let currentDeckPlayers = [];
+let currentDeckPlayerIds = [];  // Store just IDs, not full objects
+let currentDeckTeamSplit = null;  // Store the locked team assignment
 let prevCourts = null; // null = first render, don't announce yet
 
 const person = (p) => {
@@ -199,12 +200,12 @@ function renderDeck(queue, perGame, courts) {
   const deckEl = $("#deck");
   if (!deckEl) return;
 
-  // Only checked-in players are eligible for the deck and courts
+  // Only checked-in players are eligible for picking new decks
   const checkedIn = queue.filter(p => p.checked_in);
 
-  if (checkedIn.length < perGame) {
-    deckLoaded = false;
-    currentDeckPlayers = [];
+  // Only show "need more players" if deck is NOT loaded yet
+  if (!deckLoaded && checkedIn.length < perGame) {
+    currentDeckPlayerIds = [];
     const need = perGame - checkedIn.length;
     const msg = queue.length < perGame
       ? `Need ${perGame - queue.length} more player(s) in queue.`
@@ -225,7 +226,24 @@ function renderDeck(queue, perGame, courts) {
 
   if (!deckLoaded) {
     const loadBtn = button("Show Next Deck", () => {
-      currentDeckPlayers = pickDeckGroup(checkedIn, perGame);
+      const deck = pickDeckGroup(checkedIn, perGame);
+      currentDeckPlayerIds = deck.map(p => p.id);  // Store only IDs
+      
+      // Compute and lock team split
+      function computeTeamSplit(players) {
+        const [a, b, c, d] = players;
+        const opts = [[[a,b],[c,d]], [[a,c],[b,d]], [[a,d],[b,c]]];
+        const valid = opts.filter(([t1, t2]) => {
+          const ok = (team) => team.every(p =>
+            !p.partner_id || team.some(q => q.id === p.partner_id)
+          );
+          return ok(t1) && ok(t2);
+        });
+        const chosen = valid.length ? valid[Math.floor(Math.random() * valid.length)] : opts[0];
+        return chosen.map(team => team.map(p => p.id));  // Return as IDs
+      }
+      
+      currentDeckTeamSplit = computeTeamSplit(deck);
       deckLoaded = true;
       render(lastState);
     }, "", "Show the next group of players");
@@ -241,24 +259,59 @@ function renderDeck(queue, perGame, courts) {
     return;
   }
 
-  const checkedInIds = new Set(checkedIn.map(p => p.id));
+  // Check if any deck player is completely gone from queue (left/finished)
   const allQueueIds = new Set(queue.map(p => p.id));
-  
-  // Only regenerate deck if a player from it is completely gone from queue
-  const deckPlayersMissing = currentDeckPlayers.some(p => !allQueueIds.has(p.id));
+  const deckPlayersMissing = currentDeckPlayerIds.some(id => !allQueueIds.has(id));
   
   if (deckPlayersMissing) {
-    currentDeckPlayers = pickDeckGroup(checkedIn, perGame);
+    // A player left queue completely — pick new deck
+    const deck = pickDeckGroup(checkedIn, perGame);
+    currentDeckPlayerIds = deck.map(p => p.id);
+    currentDeckTeamSplit = null;
+  }
+  
+  // NOTE: Do NOT regenerate deck just because wait times changed or players unchecked
+  // The deck stays locked until a player actually LEAVES the queue
+
+  // Get the actual player objects by ID, maintaining the locked order
+  const nextPlayers = currentDeckPlayerIds.map(id => queue.find(p => p.id === id)).filter(Boolean);
+
+  // If we lost some players, try to recover before giving up
+  if (nextPlayers.length < currentDeckPlayerIds.length) {
+    // Some players from deck went missing — only reset if they're completely gone from queue
+    const missingFromQueue = currentDeckPlayerIds.filter(id => !queue.some(p => p.id === id));
+    if (missingFromQueue.length > 0) {
+      // Players actually left — regenerate
+      deckLoaded = false;
+      currentDeckPlayerIds = [];
+      currentDeckTeamSplit = null;
+    }
+    // Otherwise, keep the deck even if data is incomplete (they might rejoin soon)
   }
 
-  // Map deck IDs to current queue players to get fresh data (win/loss records, etc)
-  // but ONLY if they're still in the queue — otherwise keep original
-  const nextPlayers = currentDeckPlayers.map(cp => {
-    const updated = queue.find(q => q.id === cp.id);
-    return updated || cp;  // Use updated if in queue, else use original cached data
-  });
+  // If deck is now empty, show "need more" message
+  if (currentDeckPlayerIds.length === 0 || nextPlayers.length === 0) {
+    deckLoaded = false;
+    currentDeckPlayerIds = [];
+    const need = perGame - checkedIn.length;
+    const msg = queue.length < perGame
+      ? `Need ${perGame - queue.length} more player(s) in queue.`
+      : `Need ${need} more player(s) to check in.`;
 
-  // Split preview teams respecting partner locks
+    const loadBtn = button("Show Next Deck", null, "", "Show the next group of players");
+    loadBtn.disabled = checkedIn.length < perGame;
+
+    deckEl.replaceChildren(
+      el("div", { className: "court deck-card" },
+        el("div", { className: "court-head" }, el("h3", { textContent: "Up next deck" })),
+        el("p", { className: "deck-empty", textContent: msg }),
+        el("div", { className: "court-actions", style: "margin-top: 0.6rem;" }, loadBtn)
+      )
+    );
+    return;
+  }
+
+  // Split preview teams using LOCKED split
   function previewSplit(players) {
     const [a, b, c, d] = players;
     const opts = [[[a,b],[c,d]], [[a,c],[b,d]], [[a,d],[b,c]]];
@@ -271,22 +324,52 @@ function renderDeck(queue, perGame, courts) {
     const chosen = valid.length ? valid[Math.floor(Math.random() * valid.length)] : opts[0];
     return chosen;
   }
-  const [team1, team2] = previewSplit(nextPlayers);
+  
+  // Use locked split if available, otherwise compute it
+  let team1, team2;
+  if (currentDeckTeamSplit) {
+    team1 = currentDeckTeamSplit[0].map(id => nextPlayers.find(p => p.id === id)).filter(Boolean);
+    team2 = currentDeckTeamSplit[1].map(id => nextPlayers.find(p => p.id === id)).filter(Boolean);
+  } else {
+    [team1, team2] = previewSplit(nextPlayers);
+  }
 
   const reshuffleBtn = button("Reshuffle", () => {
-    currentDeckPlayers = pickDeckGroup(checkedIn, perGame);
+    const deck = pickDeckGroup(checkedIn, perGame);
+    currentDeckPlayerIds = deck.map(p => p.id);
+    
+    // Recompute team split for new deck
+    function computeTeamSplit(players) {
+      const [a, b, c, d] = players;
+      const opts = [[[a,b],[c,d]], [[a,c],[b,d]], [[a,d],[b,c]]];
+      const valid = opts.filter(([t1, t2]) => {
+        const ok = (team) => team.every(p =>
+          !p.partner_id || team.some(q => q.id === p.partner_id)
+        );
+        return ok(t1) && ok(t2);
+      });
+      const chosen = valid.length ? valid[Math.floor(Math.random() * valid.length)] : opts[0];
+      return chosen.map(team => team.map(p => p.id));
+    }
+    
+    currentDeckTeamSplit = computeTeamSplit(deck);
     render(lastState);
   }, "quiet", "Choose a different group");
 
-  const hideBtn = button("Hide Deck", () => { deckLoaded = false; render(lastState); }, "quiet", "Hide current deck");
+  const hideBtn = button("Hide Deck", () => { 
+    deckLoaded = false; 
+    currentDeckTeamSplit = null;
+    render(lastState); 
+  }, "quiet", "Hide current deck");
 
   const actionsContainer = el("div", { className: "court-actions", style: "margin-top: 0.6rem; display: flex; gap: 0.35rem; flex-wrap: wrap;" }, reshuffleBtn, hideBtn);
 
   courts.forEach((c, index) => {
     if (c.length === 0) {
       const assignBtn = button(`C${index + 1}`, async () => {
-        await run(`/api/courts/${index}/start`, { player_ids: currentDeckPlayers.map(p => p.id) });
+        await run(`/api/courts/${index}/start`, { player_ids: currentDeckPlayerIds });
         deckLoaded = false;
+        currentDeckPlayerIds = [];
       }, "", `Send deck to Court ${index + 1}`);
       actionsContainer.append(assignBtn);
     }
@@ -427,7 +510,8 @@ $("#remove-court").onclick = () => run("/api/courts/remove");
 $("#reset-btn").onclick = () => {
   if (confirm("Reset everything? This clears all players, courts, and records.")) {
     deckLoaded = false;
-    currentDeckPlayers = [];
+    currentDeckPlayerIds = [];
+    currentDeckTeamSplit = null;
     prevCourts = null;
     run("/api/reset");
   }
