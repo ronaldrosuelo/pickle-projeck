@@ -118,17 +118,17 @@
       font: 700 calc(var(--u) * 20)/1.15 var(--font-display); color: #333;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
     }
-    /* When fullscreen - scale EVERYTHING uniformly */
+    /* When fullscreen - use FIXED sizes for uniform appearance */
     .tv-courts[data-focus="true"] .tv-player {
-      gap: calc(var(--u) * 4);
+      gap: 1.5rem;
     }
     .tv-courts[data-focus="true"] .tv-player img,
     .tv-courts[data-focus="true"] .tv-player .tv-ph {
-      width: calc(var(--u) * 28); height: calc(var(--u) * 28);
+      width: 6rem; height: 6rem;
       border: 3px solid #ddd;
     }
     .tv-courts[data-focus="true"] .tv-player-name {
-      font: 700 calc(var(--u) * 26)/1.15 var(--font-display);
+      font: 700 2rem/1.15 var(--font-display);
     }
 
     /* ── Sidebar ── */
