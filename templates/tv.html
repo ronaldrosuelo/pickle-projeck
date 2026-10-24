@@ -45,7 +45,7 @@
     }
     .tv-courts {
       display: grid; 
-      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr));
       grid-auto-rows: 1fr; gap: 1rem; min-height: 0;
     }
     .tv-sidebar {
@@ -120,7 +120,7 @@
     .tv-team.team-2 .tv-player img, .tv-team.team-2 .tv-player .tv-ph { border-color: #f0a04b; }
 
     .tv-team-label {
-      font: 700 0.8rem/1 var(--font-display); letter-spacing: 0.1em;
+      font: 700 0.95rem/1 var(--font-display); letter-spacing: 0.1em;
       text-transform: uppercase; color: #666; flex-shrink: 0;
     }
     .tv-player {
@@ -139,7 +139,7 @@
     }
     .tv-player .tv-ph svg { width: 60%; height: 60%; fill: #bbb; }
     .tv-player-name {
-      font: 700 1.15rem/1.2 var(--font-display); color: #333;
+      font: 700 1.4rem/1.2 var(--font-display); color: #333;
       text-shadow: none; text-align: left;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       flex: 1;
