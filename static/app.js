@@ -68,12 +68,125 @@ function renderCourt(players, i, checkedInCount, perGame) {
 
   card.append(
     el("div", { className: "team-labels" }, el("span", { textContent: "Team 1" }), el("span", { textContent: "Team 2" })),
-    el("ul", {}, ...players.map((p) => el("li", {}, el("span", { textContent: p.name }), record(p)))),
+    courtPlayersList(players, i),
     el("div", { className: "court-actions" },
       button("Team 1 Won", () => openScoreModal(i, 1, players)),
       button("Team 2 Won", () => openScoreModal(i, 2, players)),
+      button("🔊 Announce", () => announceCourt(i, players), "quiet", `Announce the players on Court ${i + 1}`),
       button("Cancel", () => run(`/api/courts/${i}/finish`, { winner: null }), "quiet")));
   return card;
+}
+
+/* ── Court player tools: announce, drag-to-swap teams, replace player ───────── */
+let courtDragging = false;
+let dragFrom = null;   // { court, idx }
+let swapPick = null;   // { court, id }  (tap-to-swap fallback for touch screens)
+
+function announceCourt(i, p) {
+  if (typeof window.soundUnlocked !== "undefined" && !window.soundUnlocked) {
+    msg.textContent = "Press 🔊 Enable (Voice bar) first to hear announcements.";
+    return;
+  }
+  msg.textContent = "";
+  if (typeof window.announce === "function") {
+    window.announce(`Court ${i + 1}. Team 1: ${p[0].name}, ${p[1].name}. Team 2: ${p[2].name}, ${p[3].name}.`);
+  }
+}
+
+/* Server calls for the new actions. Needs POST /api/courts/<i>/swap and /replace on the Flask side. */
+async function courtAction(path, body) {
+  courtDragging = false; dragFrom = null; swapPick = null;
+  await run(path, body);
+  if (/unexpected token|json|not found/i.test(msg.textContent)) {
+    msg.textContent = "This action needs the new server endpoint (swap / replace) — not added yet.";
+  }
+}
+function swapPlayers(courtIdx, a, b) {
+  courtAction(`/api/courts/${courtIdx}/swap`, { a: a.id, b: b.id });
+}
+
+function courtPlayersList(players, courtIdx) {
+  const teamOf = (idx) => (idx < 2 ? 0 : 1);
+  const ul = el("ul", { className: "court-players" });
+  const clearMarks = () => ul.querySelectorAll(".drop-ok").forEach((x) => x.classList.remove("drop-ok"));
+
+  players.forEach((p, idx) => {
+    const repl = button("↻", () => openReplaceModal(courtIdx, p), "icon-btn", `Replace ${p.name}`);
+    repl.title = "Replace this player";
+    repl.draggable = false;
+    const li = el("li", {
+      draggable: true,
+      className: swapPick && swapPick.court === courtIdx && swapPick.id === p.id ? "swap-pick" : "",
+      title: "Drag to the other team to swap (or tap two players)",
+    }, el("span", { textContent: p.name }), record(p), repl);
+
+    li.addEventListener("dragstart", (e) => {
+      courtDragging = true; dragFrom = { court: courtIdx, idx };
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", String(idx));
+      li.classList.add("dragging");
+    });
+    li.addEventListener("dragend", () => {
+      courtDragging = false; dragFrom = null;
+      li.classList.remove("dragging"); clearMarks();
+    });
+    li.addEventListener("dragover", (e) => {
+      if (dragFrom && dragFrom.court === courtIdx && teamOf(dragFrom.idx) !== teamOf(idx)) {
+        e.preventDefault(); e.dataTransfer.dropEffect = "move"; li.classList.add("drop-ok");
+      }
+    });
+    li.addEventListener("dragleave", () => li.classList.remove("drop-ok"));
+    li.addEventListener("drop", (e) => {
+      e.preventDefault(); clearMarks();
+      if (dragFrom && dragFrom.court === courtIdx && teamOf(dragFrom.idx) !== teamOf(idx)) {
+        swapPlayers(courtIdx, players[dragFrom.idx], p);
+      }
+    });
+
+    /* Tap fallback: tap one player, then tap a player on the other team */
+    li.addEventListener("click", (e) => {
+      if (e.target.closest("button")) return;
+      if (swapPick && swapPick.court === courtIdx && swapPick.id !== p.id) {
+        const other = players.findIndex((x) => x.id === swapPick.id);
+        if (other >= 0 && teamOf(other) !== teamOf(idx)) { swapPlayers(courtIdx, players[other], p); return; }
+      }
+      swapPick = (swapPick && swapPick.id === p.id) ? null : { court: courtIdx, id: p.id };
+      render(lastState);
+    });
+    ul.append(li);
+  });
+  return ul;
+}
+
+function openReplaceModal(courtIdx, outP) {
+  const old = document.getElementById("replace-modal-overlay");
+  if (old) old.remove();
+  const waiting = lastState ? lastState.queue : [];
+
+  const close = button("✕", () => overlay.remove());
+  close.className = "modal-close";
+
+  const body = waiting.length
+    ? el("ul", { className: "replace-list" }, ...waiting.map((q) => {
+        const b = button(q.checked_in ? q.name : `${q.name} (not checked in)`, () => {
+          overlay.remove();
+          courtAction(`/api/courts/${courtIdx}/replace`, { out_id: outP.id, in_id: q.id });
+        }, "quiet", `Put ${q.name} in place of ${outP.name}`);
+        b.disabled = !q.checked_in;
+        return el("li", {}, b, record(q));
+      }))
+    : el("p", { textContent: "No one is waiting in the queue." });
+
+  const modal = el("div", { className: "score-modal" },
+    el("div", { className: "modal-header" },
+      el("h2", { textContent: `Court ${courtIdx + 1} — replace ${outP.name}` }), close),
+    el("p", { textContent: `${outP.name} goes back to the queue. Pick who takes their place:` }),
+    body);
+  const overlay = el("div", { id: "replace-modal-overlay", className: "modal-overlay" }, modal);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  const onKey = (e) => { if (e.key === "Escape") { overlay.remove(); document.removeEventListener("keydown", onKey); } };
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
 }
 
 /* ── Score Modal ──────────────────────────────────────────────── */
@@ -196,7 +309,7 @@ function pickDeckGroup(queue, perGame) {
   return picked;
 }
 
-function renderDeck(queue, perGame, courts) {
+function renderDeckInner(queue, perGame, courts) {
   const deckEl = $("#deck");
   if (!deckEl) return;
 
@@ -408,6 +521,7 @@ function checkinButton(p) {
 
 function render(data) {
   lastState = data;
+  if (courtDragging) return;   // keep the DOM stable while a name is being dragged
   const { queue, courts, breaks, per_game, max_courts, checked_in_count,
           queue_join_times, server_time } = data;
 
@@ -536,3 +650,22 @@ async function refresh() {
 }
 refresh();
 setInterval(refresh, 3000);
+
+/* ── Share the "Up next deck" with the TV view (same browser, same origin) ──
+ * Saves the current deck (ordered Team 1 then Team 2) to localStorage so
+ * tv.html can show it in the lower-right "Up Next" panel. */
+function publishDeck(queue) {
+  let players = [];
+  if (deckLoaded && currentDeckPlayerIds.length) {
+    let ids = currentDeckPlayerIds;
+    if (currentDeckTeamSplit) ids = [...currentDeckTeamSplit[0], ...currentDeckTeamSplit[1]];
+    players = ids.map(id => queue.find(p => p.id === id)).filter(Boolean)
+      .map(p => ({ id: p.id, name: p.name, avatar: p.avatar || null }));
+  }
+  try { localStorage.setItem("pickleDeck", JSON.stringify({ players, t: Date.now() })); } catch (e) {}
+}
+
+function renderDeck(queue, perGame, courts) {
+  renderDeckInner(queue, perGame, courts);
+  publishDeck(queue);
+}

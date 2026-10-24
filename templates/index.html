@@ -251,7 +251,7 @@
     const voiceSelect = document.getElementById('voice-select');
     const statusEl = document.getElementById('sound-status');
     const enableBtn = document.getElementById('enable-sound-btn');
-    let soundUnlocked = false;
+    window.soundUnlocked = false;
 
     // Populate voices
     function populateVoices() {
@@ -287,18 +287,18 @@
 
     // Enable sound button — toggle state
     enableBtn.addEventListener('click', () => {
-      if (!soundUnlocked) {
+      if (!window.soundUnlocked) {
         const utter = new SpeechSynthesisUtterance('');
         utter.volume = 0;
         window.speechSynthesis.speak(utter);
-        soundUnlocked = true;
+        window.soundUnlocked = true;
         enableBtn.textContent = '🔊 ON';
         enableBtn.style.background = 'linear-gradient(180deg, #2a6b2a, #1a4a1a)';
         enableBtn.style.borderColor = '#1a4a1a';
         statusEl.textContent = '✅ Sound enabled';
         statusEl.style.color = '#2a6b2a';
       } else {
-        soundUnlocked = false;
+        window.soundUnlocked = false;
         enableBtn.textContent = '🔇 OFF';
         enableBtn.style.background = 'linear-gradient(180deg, var(--maroon-mid), var(--maroon-dark))';
         enableBtn.style.borderColor = 'var(--maroon-dark)';
@@ -354,7 +354,7 @@
     }
 
     window.announce = function (text) {
-      if (!soundUnlocked || !('speechSynthesis' in window)) return;
+      if (!window.soundUnlocked || !('speechSynthesis' in window)) return;
 
       const ss = window.speechSynthesis;
       const voices = ss.getVoices();
