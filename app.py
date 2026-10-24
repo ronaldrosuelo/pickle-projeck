@@ -22,6 +22,7 @@ courts = [[], []]  # each court: [team1_a, team1_b, team2_a, team2_b] or []
 court_start_times = {}  # court_index -> unix timestamp (float) when game started
 queue_join_times  = {}  # player_id   -> unix timestamp (float) when joined queue
 results = {}  # name_lower -> {"w": 0, "l": 0}
+game_history = []  # List of completed games with details: [{"court": n, "team1": [...], "team2": [...], "winner": 1|2, "score1": s1, "score2": s2}, ...]
 together = {}  # (name_a, name_b) -> games in the same game
 partners = {}  # (name_a, name_b) -> games as teammates
 locked_with = {}  # player_id -> partner player_id
@@ -787,6 +788,17 @@ def finish(n):
                 r = results.setdefault(p["name"].lower(), {"w": 0, "l": 0, "pts": 0})
                 r["l"]   += 1
                 r["pts"] += diff_lost
+            
+            # Store game in history
+            game_history.append({
+                "court": n + 1,
+                "team1": [{"name": p["name"]} for p in (courts[n][:2] if winner == 1 else courts[n][2:])],
+                "team2": [{"name": p["name"]} for p in (courts[n][2:] if winner == 1 else courts[n][:2])],
+                "winner": winner,
+                "score1": pts_for,
+                "score2": pts_against
+            })
+        
         for p in courts[n]:
             queue.append({"id": p["id"], "name": p["name"],
                           "checked_in": True, "avatar": p.get("avatar")})
@@ -1068,13 +1080,23 @@ REPORT_TEMPLATE = """
         body { font-family: Arial, sans-serif; margin: 40px; color: #333; background: #fff; }
         h1 { text-align: center; color: #111; margin-bottom: 5px; }
         p.subtitle { text-align: center; color: #666; margin-top: 0; margin-bottom: 30px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        h2 { color: #111; margin-top: 40px; margin-bottom: 15px; border-bottom: 2px solid #ddd; padding-bottom: 8px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-        th { background-color: #f4f4f4; color: #111; }
+        th { background-color: #f4f4f4; color: #111; font-weight: bold; }
         tr:nth-child(even) { background-color: #fafafa; }
         .no-print { margin-bottom: 25px; text-align: center; }
         .btn { background: #111; color: #fff; padding: 10px 20px; border: none; cursor: pointer; font-size: 16px; border-radius: 4px; font-weight: bold; }
         .btn:hover { background: #333; }
+        .game-record { margin-bottom: 30px; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background-color: #fafafa; }
+        .court-header { font-weight: bold; font-size: 16px; color: #111; margin-bottom: 10px; }
+        .team-box { display: inline-block; width: 45%; vertical-align: top; }
+        .team-box-winner { background-color: #e8f5e9; padding: 10px; border-radius: 4px; }
+        .team-box-loser { background-color: #ffebee; padding: 10px; border-radius: 4px; }
+        .team-label { font-weight: bold; margin-bottom: 8px; }
+        .player-name { margin: 4px 0; padding-left: 10px; }
+        .score { text-align: center; font-size: 18px; font-weight: bold; color: #333; padding: 0 10px; display: inline-block; vertical-align: top; width: 8%; }
+        .vs-text { text-align: center; display: inline-block; width: 2%; vertical-align: middle; font-weight: bold; color: #999; }
         @media print {
             .no-print { display: none; }
             body { margin: 10px; }
@@ -1088,6 +1110,9 @@ REPORT_TEMPLATE = """
     </div>
     <h1>Game Records Report</h1>
     <p class="subtitle">Summary of wins and losses for all players</p>
+    
+    <!-- Overall Statistics Section -->
+    <h2>📊 Overall Standings</h2>
     <table>
         <thead>
             <tr>
@@ -1097,6 +1122,7 @@ REPORT_TEMPLATE = """
                 <th>Losses</th>
                 <th>Total Games</th>
                 <th>Win Rate</th>
+                <th>Points</th>
             </tr>
         </thead>
         <tbody>
@@ -1109,15 +1135,46 @@ REPORT_TEMPLATE = """
                     <td>{{ p.l }}</td>
                     <td>{{ p.w + p.l }}</td>
                     <td>{{ "%.1f" | format((p.w / (p.w + p.l) * 100) if (p.w + p.l) > 0 else 0) }}%</td>
+                    <td>{{ p.pts }}</td>
                 </tr>
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="6" style="text-align: center; color: #777;">No games recorded yet.</td>
+                    <td colspan="7" style="text-align: center; color: #777;">No games recorded yet.</td>
                 </tr>
             {% endif %}
         </tbody>
     </table>
+    
+    <!-- Game History Section -->
+    {% if games %}
+    <h2>🏆 Game History</h2>
+    {% for game in games | reverse %}
+    <div class="game-record">
+        <div class="court-header">Court {{ game.court }}</div>
+        <div style="margin-top: 10px;">
+            <div class="team-box {% if game.winner == 1 %}team-box-winner{% else %}team-box-loser{% endif %}">
+                <div class="team-label">Team 1 {% if game.winner == 1 %}✓ WON{% else %}LOST{% endif %}</div>
+                {% for player in game.team1 %}
+                <div class="player-name">{{ player.name }}</div>
+                {% endfor %}
+            </div>
+            <div class="score">{{ game.score1 }}</div>
+            <div class="vs-text">VS</div>
+            <div class="score">{{ game.score2 }}</div>
+            <div class="team-box {% if game.winner == 2 %}team-box-winner{% else %}team-box-loser{% endif %}">
+                <div class="team-label">Team 2 {% if game.winner == 2 %}✓ WON{% else %}LOST{% endif %}</div>
+                {% for player in game.team2 %}
+                <div class="player-name">{{ player.name }}</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <h2>🏆 Game History</h2>
+    <p style="text-align: center; color: #777; padding: 20px;">No games recorded yet.</p>
+    {% endif %}
 </body>
 </html>
 """
@@ -1131,7 +1188,8 @@ def report_page():
             key=lambda x: (x["pts"], x["w"], -x["l"]),
             reverse=True
         )
-    return render_template_string(REPORT_TEMPLATE, results=sorted_results)
+        game_history_copy = list(game_history)  # Make a copy to avoid lock issues
+    return render_template_string(REPORT_TEMPLATE, results=sorted_results, games=game_history_copy)
 
 
 # TV DISPLAY TEMPLATE (GLASSMORPHISM & STABLE SCROLL LAYOUT)
@@ -1386,6 +1444,7 @@ def reset_state():
         court_start_times.clear()
         queue_join_times.clear()
         results.clear()
+        game_history.clear()
         together.clear()
         partners.clear()
         locked_with.clear()
