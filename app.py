@@ -798,6 +798,40 @@ def finish(n):
         return jsonify(state())
 
 
+@app.post("/api/courts/<int:n>/swap")
+def swap_players(n):
+    """Swap two players between teams on a court."""
+    data = request.get_json(silent=True) or {}
+    a_id = data.get("a")
+    b_id = data.get("b")
+    
+    with lock:
+        if not 0 <= n < len(courts) or not courts[n]:
+            return error("No game on that court.", 400)
+        if len(courts[n]) != PLAYERS_PER_GAME:
+            return error("Court must have exactly 4 players.", 400)
+        
+        # Find both players on the court
+        a_idx = next((i for i, p in enumerate(courts[n]) if p["id"] == a_id), None)
+        b_idx = next((i for i, p in enumerate(courts[n]) if p["id"] == b_id), None)
+        
+        if a_idx is None or b_idx is None:
+            return error("One or both players not found on court.", 404)
+        
+        # Determine which teams they're on (0-1 for team 1, 2-3 for team 2)
+        a_team = 0 if a_idx < 2 else 1
+        b_team = 0 if b_idx < 2 else 1
+        
+        # Only allow swap if they're on different teams
+        if a_team == b_team:
+            return error("Players must be on different teams to swap.", 400)
+        
+        # Swap the players in the courts array
+        courts[n][a_idx], courts[n][b_idx] = courts[n][b_idx], courts[n][a_idx]
+        
+        return jsonify(state())
+
+
 @app.post("/api/deck/reshuffle")
 def reshuffle_deck():
     with lock:
