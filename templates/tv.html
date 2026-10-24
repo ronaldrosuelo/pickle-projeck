@@ -773,7 +773,6 @@
         prevCourts = data.courts.map(c => Array.isArray(c) ? [...c] : []);
 
         /* Render courts */
-        layoutCourts(data.courts.length);
         const courtsEl = document.getElementById('courts-container');
         courtsEl.innerHTML = '';
         
