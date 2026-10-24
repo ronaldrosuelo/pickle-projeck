@@ -374,9 +374,10 @@ function renderDeckInner(queue, perGame, courts) {
 
   // Check if any deck player is completely gone from queue (left/finished)
   const allQueueIds = new Set(queue.map(p => p.id));
-  const deckPlayersMissing = currentDeckPlayerIds.some(id => !allQueueIds.has(id));
   
-  if (deckPlayersMissing) {
+  // Only regenerate if a player in the deck is COMPLETELY missing from queue
+  const missingFromQueue = currentDeckPlayerIds.filter(id => !allQueueIds.has(id));
+  if (missingFromQueue.length > 0 && deckLoaded) {
     // A player left queue completely — pick new deck
     const deck = pickDeckGroup(checkedIn, perGame);
     currentDeckPlayerIds = deck.map(p => p.id);
@@ -384,29 +385,36 @@ function renderDeckInner(queue, perGame, courts) {
   }
   
   // NOTE: Do NOT regenerate deck just because wait times changed or players unchecked
-  // The deck stays locked until a player actually LEAVES the queue
+  // The deck stays locked until a player actually LEAVES the queue completely
 
   // Get the actual player objects by ID, maintaining the locked order
   const nextPlayers = currentDeckPlayerIds.map(id => queue.find(p => p.id === id)).filter(Boolean);
 
-  // If we lost some players, try to recover before giving up
-  if (nextPlayers.length < currentDeckPlayerIds.length) {
-    // Some players from deck went missing — only reset if they're completely gone from queue
-    const missingFromQueue = currentDeckPlayerIds.filter(id => !queue.some(p => p.id === id));
-    if (missingFromQueue.length > 0) {
-      // Players actually left — regenerate
-      deckLoaded = false;
-      currentDeckPlayerIds = [];
+  // Safety check: if nextPlayers suddenly has fewer players, only reset if they left queue entirely
+  if (nextPlayers.length < currentDeckPlayerIds.length && deckLoaded) {
+    // Some deck players aren't showing up - verify they're actually gone from queue
+    const stillMissing = currentDeckPlayerIds.filter(id => !queue.some(p => p.id === id));
+    if (stillMissing.length === 0) {
+      // All players still in queue, just rendering issue - don't reset
+      // This prevents the deck from disappearing during refresh cycles
+    } else if (stillMissing.length > 0) {
+      // Players actually left — regenerate deck
+      const deck = pickDeckGroup(checkedIn, perGame);
+      currentDeckPlayerIds = deck.map(p => p.id);
       currentDeckTeamSplit = null;
+      // Update nextPlayers with fresh data
+      const nextPlayersNew = currentDeckPlayerIds.map(id => queue.find(p => p.id === id)).filter(Boolean);
+      if (nextPlayersNew.length === 0) {
+        deckLoaded = false;
+      }
     }
-    // Otherwise, keep the deck even if data is incomplete (they might rejoin soon)
   }
 
-  // If deck is now empty, show "need more" message
+  // If deck is now completely empty, show "need more" message
   if (currentDeckPlayerIds.length === 0 || nextPlayers.length === 0) {
     deckLoaded = false;
     currentDeckPlayerIds = [];
-    const need = perGame - checkedIn.length;
+    currentDeckTeamSplit = null;
     const msg = queue.length < perGame
       ? `Need ${perGame - queue.length} more player(s) in queue.`
       : `Need ${need} more player(s) to check in.`;
