@@ -133,7 +133,7 @@
       text-shadow: 0 1px 0 rgba(255,255,255,0.8);
     }
     .tv-queue-title { border-top: 1px solid var(--beige-dark); padding: 0.35rem 0.65rem; }
-    .tv-standings { flex: 0.6; overflow-y: auto; }
+    .tv-standings { flex: 1; overflow-y: auto; }
     .tv-standings table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     .tv-standings th {
       position: sticky; top: 0;
@@ -150,7 +150,7 @@
     .rank-3 .name-col { color: var(--leather); }
 
     /* ── Up Next deck list ── */
-    .tv-queue { list-style: none; margin: 0; padding: 0.35rem 0.55rem; overflow-y: auto; max-height: 40%; flex-shrink: 0; }
+    .tv-queue { list-style: none; margin: 0; padding: 0.35rem 0.55rem; overflow-y: auto; max-height: 100%; flex-shrink: 0; }
     .tv-queue li {
       display: flex; align-items: center; gap: 0.35rem;
       padding: 0.22rem 0.4rem; font-size: 0.95rem; color: var(--ink);
@@ -503,10 +503,12 @@
           </tbody>
         </table>
       </div>
-      <div class="tv-queue-title">Up Next</div>
-      <ol class="tv-queue" id="queue-list"></ol>
-      <div style="padding:0.5rem 0.65rem; flex-shrink:0;">
-        <button id="podium-btn" onclick="showPodium()">🏆 Top 3</button>
+      <div style="display: flex; flex-direction: column; flex-shrink: 0; min-height: 0; overflow: hidden;">
+        <div class="tv-queue-title">Up Next</div>
+        <ol class="tv-queue" id="queue-list"></ol>
+        <div style="padding:0.5rem 0.65rem; flex-shrink:0;">
+          <button id="podium-btn" onclick="showPodium()">🏆 Top 3</button>
+        </div>
       </div>
     </aside>
   </div>
