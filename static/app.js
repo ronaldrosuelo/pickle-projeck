@@ -328,10 +328,17 @@ function renderDeck(queue, perGame, courts) {
   // Use locked split if available, otherwise compute it
   let team1, team2;
   if (currentDeckTeamSplit) {
-    team1 = currentDeckTeamSplit[0].map(id => nextPlayers.find(p => p.id === id)).filter(Boolean);
-    team2 = currentDeckTeamSplit[1].map(id => nextPlayers.find(p => p.id === id)).filter(Boolean);
+    team1 = currentDeckTeamSplit[0].map(id => nextPlayers.find(p => p && p.id === id)).filter(Boolean);
+    team2 = currentDeckTeamSplit[1].map(id => nextPlayers.find(p => p && p.id === id)).filter(Boolean);
   } else {
-    [team1, team2] = previewSplit(nextPlayers);
+    // Filter out any undefined players before splitting
+    const validPlayers = nextPlayers.filter(Boolean);
+    if (validPlayers.length === perGame) {
+      [team1, team2] = previewSplit(validPlayers);
+    } else {
+      team1 = [];
+      team2 = [];
+    }
   }
 
   const reshuffleBtn = button("Reshuffle", () => {
