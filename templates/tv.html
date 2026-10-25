@@ -3,6 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Pickle Flow - Pickleball court queue manager">
+  <meta name="theme-color" content="#2f6b1f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pickle Flow">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="icon" type="image/png" href="/static/icon-192.png">
   <title>Pickle Flow – Live Display</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -70,10 +78,24 @@
       text-shadow: 0 1px 3px rgba(0,0,0,0.15);
     }
     .tv-court.busy .tv-court-title { color: #900000; text-shadow: 0 1px 4px rgba(0,0,0,0.3); }
-    /* When fullscreen - extra large COURT title */
+    /* Focus mode: only the focused court, filling the whole screen (no top bar / sidebar) */
+    body.focus-mode { padding: 0.6rem; gap: 0; }
+    body.focus-mode .tv-topbar,
+    body.focus-mode .tv-sidebar { display: none; }
+    body.focus-mode .tv-body { grid-template-columns: minmax(0, 1fr); gap: 0; }
     .tv-courts[data-focus="true"] .tv-court-title {
-      font: 800 5rem/1 var(--font-display); letter-spacing: 0.05em;
+      font: 800 min(14vh, 8vw)/1 var(--font-display); letter-spacing: 0.05em;
     }
+    .tv-courts[data-focus="true"] .tv-timer { font-size: min(8vh, 4.5vw); }
+    .tv-courts[data-focus="true"] .tv-court-free { font-size: min(14vh, 8vw); }
+    #fs-hint {
+      position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%); z-index: 9000;
+      padding: 0.6rem 1.2rem; border-radius: 999px; cursor: pointer;
+      font: 700 1rem/1 var(--font-display); letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--beige-light); background: rgba(0,0,0,0.72);
+      border: 1px solid rgba(245,225,185,0.4); display: none;
+    }
+    #fs-hint.show { display: block; }
     .tv-timer {
       font: 900 calc(var(--u) * 13)/1 var(--font-display); letter-spacing: 0.06em;
       color: #fff; background: rgba(0,0,0,0.45);
@@ -123,16 +145,14 @@
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
     }
     /* When fullscreen - use FIXED EXTRA LARGE sizes for uniform appearance */
-    .tv-courts[data-focus="true"] .tv-player {
-      gap: 2rem;
-    }
+    .tv-courts[data-focus="true"] .tv-player { gap: 2vw; }
     .tv-courts[data-focus="true"] .tv-player img,
     .tv-courts[data-focus="true"] .tv-player .tv-ph {
-      width: 12rem; height: 12rem;
+      width: min(28vh, 13vw); height: min(28vh, 13vw);
       border: 4px solid #ddd;
     }
     .tv-courts[data-focus="true"] .tv-player-name {
-      font: 700 5rem/1.15 "Arial Rounded MT Bold", "Helvetica Rounded", sans-serif;
+      font: 700 min(10vh, 5vw)/1.15 "Arial Rounded MT Bold", "Helvetica Rounded", sans-serif;
     }
 
     /* ── Sidebar ── */
@@ -267,8 +287,7 @@
     .popup-player-name {
       flex: 1; min-width: 0;
       font: 800 min(7.5vh, 4.4vw)/1.1 var(--font-display); color: #333;
-      text-align: left; overflow-wrap: anywhere;
-      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+      text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     #popup-vs { display: none; }
     #popup-bar-wrap {
@@ -484,6 +503,8 @@
     </div>
   </div>
 
+  <div id="fs-hint">⛶ Click anywhere for fullscreen</div>
+
   <div class="tv-topbar">
     <h1>Pickle Flow – Live Display</h1>
   </div>
@@ -673,6 +694,26 @@
       requestAnimationFrame(step);
     }
 
+    /* Auto-fit names: every name starts at the normal size and shrinks only as much as needed,
+       so long names stay fully visible and short names stay big. */
+    function fitNames(root) {
+      (root || document).querySelectorAll('.tv-player-name, .popup-player-name').forEach(el => {
+        el.style.fontSize = '';
+        if (!el.clientWidth) return;
+        let size = parseFloat(getComputedStyle(el).fontSize);
+        if (el.scrollWidth > el.clientWidth) {
+          size = Math.max(10, size * (el.clientWidth / el.scrollWidth) * 0.97);
+          el.style.fontSize = size.toFixed(1) + 'px';
+          let guard = 12;
+          while (el.scrollWidth > el.clientWidth && size > 10 && guard--) {
+            size -= 1.5; el.style.fontSize = size.toFixed(1) + 'px';
+          }
+        }
+      });
+    }
+    window.addEventListener('resize', () => fitNames());
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitNames());
+
     /* Layout: columns/rows for the court grid + scale unit so cards, avatars and names resize
        automatically when courts are added/removed (or the screen size changes) */
     function layoutCourts(n) {
@@ -708,6 +749,8 @@
 
       const overlay = document.getElementById('popup-overlay');
       overlay.classList.add('show');
+      fitNames(document.getElementById('popup'));
+      setTimeout(() => fitNames(document.getElementById('popup')), 150);
       animateBar();
 
       const txt = `Court ${courtIdx+1}. Team 1: ${players[0].name}, ${players[1].name}. ` +
@@ -722,13 +765,9 @@
        Up Next deck — shared from the index page via localStorage ("pickleDeck")
        Order saved by index: Team 1 (2 players) then Team 2 (2 players)
     ══════════════════════════════════════════════════════════════════════ */
-    function renderUpNext() {
+    function renderUpNext(deck) {
       const qEl = document.getElementById('queue-list');
-      let deck = [];
-      try {
-        const raw = localStorage.getItem('pickleDeck');
-        if (raw) deck = (JSON.parse(raw).players || []);
-      } catch (e) { deck = []; }
+      if (!Array.isArray(deck)) deck = [];
 
       /* Drop anyone who is no longer in the waiting queue (e.g. already sent to a court) */
       if (lastQueueIds.size) deck = deck.filter(p => lastQueueIds.has(p.id));
@@ -757,8 +796,6 @@
         qEl.appendChild(li);
       });
     }
-    /* Instant update when the index page changes the deck */
-    window.addEventListener('storage', (e) => { if (e.key === 'pickleDeck') renderUpNext(); });
 
     /* ══════════════════════════════════════════════════════════════════════
        Main refresh loop
@@ -770,6 +807,16 @@
         courtStartTimes = data.court_start_times || {};
         if (data.server_time) {
           serverTimeOffset = (Date.now() / 1000) - data.server_time;
+        }
+
+        // Render up-next deck from server
+        renderUpNext(data.deck || []);
+
+        // Update focus mode based on server state
+        const shouldFocus = data.focus !== null && data.focus !== undefined;
+        applyFocusMode(shouldFocus);
+        if (shouldFocus && data.focus !== focusedCourtIdx) {
+          focusedCourtIdx = data.focus;
         }
 
         /* Detect newly-filled courts and show popup */
@@ -795,6 +842,7 @@
         
         /* Set focus attribute for CSS */
         courtsEl.setAttribute('data-focus', validFocusIdx >= 0 ? 'true' : 'false');
+        applyFocusMode(validFocusIdx >= 0);
         
         /* Layout grid based on focus mode */
         if (validFocusIdx >= 0) {
@@ -853,6 +901,7 @@
         });
 
         fitCourts();
+        fitNames(document.getElementById('courts-container'));
 
         /* Up Next deck (from the index page's deck) */
         lastQueueIds = new Set((data.queue || []).map(p => p.id));
@@ -863,17 +912,58 @@
     refresh();
     setInterval(refresh, 500);
     
+    /* ── Focus mode → fullscreen ──
+       Layout (top bar + sidebar hidden) switches instantly. Real browser fullscreen needs a click/key
+       on THIS page (browser rule), so if it is blocked a small hint appears: click anywhere (or press F). */
+    let focusOn = false;
+    let fsByFocus = false;
+    const fsHint = document.getElementById('fs-hint');
+
+    function requestFs() {
+      if (document.fullscreenElement) return;
+      const el = document.documentElement;
+      const fn = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!fn) return;
+      try {
+        const p = fn.call(el);
+        if (p && p.catch) p.catch(() => { if (focusOn) fsHint.classList.add('show'); });
+      } catch (e) { if (focusOn) fsHint.classList.add('show'); }
+    }
+    function leaveFs() {
+      fsHint.classList.remove('show');
+      if (document.fullscreenElement) { fsByFocus = false; document.exitFullscreen().catch(() => {}); }
+    }
+    function applyFocusMode(on) {
+      if (on === focusOn) return;
+      focusOn = on;
+      document.body.classList.toggle('focus-mode', on);
+      if (on) requestFs(); else leaveFs();
+    }
+    /* Any click / key while in focus mode (and not yet fullscreen) enters fullscreen */
+    ['click', 'keydown', 'touchend'].forEach(evt =>
+      document.addEventListener(evt, (e) => {
+        if (focusOn && !document.fullscreenElement && !(evt === 'keydown' && e.key === 'Escape')) requestFs();
+      }, true));
+    document.addEventListener('keydown', (e) => {
+      if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        document.fullscreenElement ? document.exitFullscreen() : requestFs();
+      }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      if (document.fullscreenElement) {
+        fsHint.classList.remove('show');
+        if (focusOn) fsByFocus = true;
+      } else if (fsByFocus) {
+        /* Esc (or F11) left fullscreen → also leave focus mode */
+        fsByFocus = false;
+        localStorage.removeItem('focusedCourt');
+        refresh();
+      }
+    });
+
     /* Listen for focus changes from index.html */
     window.addEventListener('storage', (e) => {
       if (e.key === 'focusedCourt') {
-        if (localStorage.getItem('focusedCourt') !== null) {
-          // Request fullscreen when focus is activated
-          if (document.documentElement.requestFullscreen) {
-            document.documentElement.requestFullscreen().catch(err => {
-              console.log('Fullscreen request failed:', err);
-            });
-          }
-        }
         refresh(); /* Re-render courts based on new focus */
       }
     });
@@ -882,12 +972,6 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         localStorage.removeItem('focusedCourt');
-        // Exit fullscreen
-        if (document.fullscreenElement) {
-          document.exitFullscreen().catch(err => {
-            console.log('Exit fullscreen failed:', err);
-          });
-        }
         refresh();
       }
     });
@@ -1005,6 +1089,11 @@
         document.getElementById('podium-overlay').classList.remove('show');
       }
     });
+
+    // Register service worker for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+    }
   </script>
 </body>
-</html>
+</html>>

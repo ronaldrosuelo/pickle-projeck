@@ -1,7 +1,9 @@
 services:
   - type: web
-    name: pickle-projeck
-    env: python
+    name: pickle-flow
+    runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
-    plan: free
+    startCommand: gunicorn app:app -k gthread --threads 16 -w 1 --timeout 0
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9

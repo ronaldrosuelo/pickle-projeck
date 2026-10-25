@@ -1,0 +1,25 @@
+{
+  "name": "Pickle Flow",
+  "short_name": "Pickle Flow",
+  "description": "Pickleball court queue manager",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f0eb",
+  "theme_color": "#2f6b1f",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/static/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

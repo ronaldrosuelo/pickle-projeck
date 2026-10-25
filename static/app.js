@@ -94,8 +94,8 @@ function renderCourt(players, i, checkedInCount, perGame) {
       button("Team 2 Won", () => openScoreModal(i, 2, players)),
       button("🔊 Announce", () => announceCourt(i, players), "quiet", `Announce the players on Court ${i + 1}`),
       button("📺 Focus", () => {
-        const focused = localStorage.getItem('focusedCourt');
-        if (focused === String(i)) {
+        const focused = lastState && lastState.focus;
+        if (focused === i) {
           unfocusCourtOnTV();
         } else {
           focusCourtOnTV(i);
@@ -146,18 +146,29 @@ function announceCourt(i, p) {
 }
 
 function focusCourtOnTV(courtIdx) {
-  // Store focused court in localStorage so TV view can read it
-  localStorage.setItem('focusedCourt', String(courtIdx));
+  // Post focused court to server (sets ui["focus"])
+  run("/api/focus", { court: courtIdx });
   msg.textContent = `📺 Court ${courtIdx + 1} is now focused on TV display. Press 📺 Focus again to unfocus.`;
-  // Auto-clear message after 3 seconds
   setTimeout(() => { if (msg.textContent.includes('focused on TV')) msg.textContent = ''; }, 3000);
 }
 
 function unfocusCourtOnTV() {
-  // Clear focused court
-  localStorage.removeItem('focusedCourt');
+  // Post null to server to clear focus
+  run("/api/focus", { court: null });
   msg.textContent = '📺 Unfocused - showing all courts on TV';
   setTimeout(() => { msg.textContent = ''; }, 2000);
+}
+
+// Track last deck signature to avoid duplicate sends
+let lastDeckSig = null;
+
+function publishDeck(playerIds) {
+  // Create a signature of the current deck to detect changes
+  const sig = JSON.stringify(playerIds);
+  if (sig === lastDeckSig) return;  // Already sent this deck
+  
+  lastDeckSig = sig;
+  run("/api/deck", { ids: playerIds });
 }
 
 /* Server calls for the new actions. Needs POST /api/courts/<i>/swap and /replace on the Flask side. */
@@ -472,6 +483,7 @@ function renderDeckInner(queue, perGame, courts) {
       
       currentDeckTeamSplit = computeTeamSplit(deck);
       deckLoaded = true;
+      publishDeck(currentDeckPlayerIds);  // Send deck to server
       render(lastState);
     }, "", "Show the next group of players");
     loadBtn.disabled = checkedIn.length < perGame;
@@ -595,6 +607,7 @@ function renderDeckInner(queue, perGame, courts) {
     }
     
     currentDeckTeamSplit = computeTeamSplit(deck);
+    publishDeck(currentDeckPlayerIds);  // Send updated deck to server
     render(lastState);
   }, "quiet", "Choose a different group");
 

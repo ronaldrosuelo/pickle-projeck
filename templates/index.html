@@ -3,6 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Pickle Flow - Pickleball court queue manager">
+  <meta name="theme-color" content="#2f6b1f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pickle Flow">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="icon" type="image/png" href="/static/icon-192.png">
   <title>Pickle Flow</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -263,6 +271,12 @@
     const statusEl = document.getElementById('sound-status');
     const enableBtn = document.getElementById('enable-sound-btn');
     window.soundUnlocked = false;
+
+    // Register service worker for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+    }
+
 
     // Populate voices
     function populateVoices() {

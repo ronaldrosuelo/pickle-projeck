@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from itertools import combinations, count
 from threading import Lock
 from flask import Flask, jsonify, render_template, render_template_string, request, Response
+from queue import Queue, Empty
 
 app = Flask(__name__)
 
@@ -29,6 +30,10 @@ together = {}  # (name_a, name_b) -> games in the same game
 partners = {}  # (name_a, name_b) -> games as teammates
 locked_with = {}  # player_id -> partner player_id
 sse_clients = []  # list of queues to broadcast standings updates
+
+# Server-side state for deck and focus (instead of localStorage)
+deck_ids = []  # Ordered list of player IDs for the up-next deck
+ui = {"focus": None}  # Focused court index or None
 
 
 def get_standings():
@@ -80,6 +85,15 @@ def tally(p):
 def state():
     checked_in_count = sum(1 for p in queue if p.get("checked_in", False))
     now = time.time()
+    
+    # Build deck from deck_ids
+    deck = [tally(p) for p_id in deck_ids for p in queue if p["id"] == p_id]
+    
+    # Validate focus court
+    focus = ui["focus"]
+    if focus is not None and (focus < 0 or focus >= len(courts)):
+        focus = None
+    
     return {
         "queue": [tally(p) for p in queue],
         "courts": [[tally(p) for p in c] for c in courts],
@@ -90,6 +104,8 @@ def state():
         "court_start_times": {str(k): v for k, v in court_start_times.items()},
         "queue_join_times":  {str(k): v for k, v in queue_join_times.items()},
         "server_time": now,
+        "deck": deck,
+        "focus": focus,
     }
 
 
@@ -595,7 +611,7 @@ def index():
     return render_template("index.html")
 
 
-@app.get("/api/state")
+@app.route("/api/state", methods=["GET"])
 def get_state():
     with lock:
         return jsonify(state())
@@ -612,7 +628,6 @@ def get_standings_json():
 @app.get("/api/standings-stream")
 def standings_stream():
     """Server-Sent Events stream for real-time standings updates."""
-    from queue import Queue
     q = Queue()
     sse_clients.append(q)
     
@@ -623,8 +638,12 @@ def standings_stream():
             yield f"data: {json.dumps(standings)}\n\n"
             # Then wait for updates
             while True:
-                msg = q.get(timeout=30)  # 30s timeout to detect dead clients
-                yield msg
+                try:
+                    msg = q.get(timeout=15)  # 15s timeout for keepalive
+                    yield msg
+                except Empty:
+                    # Send keepalive comment
+                    yield ": keepalive\n\n"
         except:
             pass
         finally:
@@ -1548,7 +1567,97 @@ def reset_state():
         partners.clear()
         locked_with.clear()
         last_game_group.clear()
+        deck_ids[:] = []  # Clear server-side deck
+        ui["focus"] = None  # Clear server-side focus
         return jsonify(state())
+
+
+@app.post("/api/deck")
+def set_deck():
+    """Set the up-next deck. Body: {"ids": [int, int, int, int]}"""
+    data = request.get_json(silent=True) or {}
+    ids = data.get("ids", [])
+    
+    with lock:
+        # Validate: must be 4 player IDs, all in queue
+        if len(ids) != PLAYERS_PER_GAME:
+            return error(f"Deck must have exactly {PLAYERS_PER_GAME} players.", 400)
+        
+        queue_ids = {p["id"] for p in queue}
+        for player_id in ids:
+            if player_id not in queue_ids:
+                return error(f"Player {player_id} not in queue.", 404)
+        
+        # Store on server
+        deck_ids[:] = ids
+        return jsonify(state())
+
+
+@app.post("/api/focus")
+def set_focus():
+    """Set the focused court on TV. Body: {"court": int | null}"""
+    data = request.get_json(silent=True) or {}
+    court = data.get("court")
+    
+    with lock:
+        if court is not None:
+            # Validate court index
+            if not isinstance(court, int) or court < 0 or court >= len(courts):
+                return error(f"Invalid court index. Must be 0-{len(courts)-1}.", 400)
+        
+        # Store on server
+        ui["focus"] = court
+        return jsonify(state())
+
+
+@app.get("/sw.js")
+def service_worker():
+    """Serve service worker with no-cache headers."""
+    sw_code = """
+// Service Worker for Pickle Flow PWA
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', e => e.waitUntil(clients.claim()));
+self.addEventListener('fetch', () => {}); // Passthrough - no caching for live data
+"""
+    return app.response_class(
+        response=sw_code,
+        status=200,
+        mimetype="application/javascript",
+        headers={
+            "Service-Worker-Allowed": "/",
+            "Cache-Control": "no-cache, must-revalidate",
+        }
+    )
+
+
+@app.get("/manifest.json")
+def manifest():
+    """Serve PWA manifest."""
+    return jsonify({
+        "name": "Pickle Flow",
+        "short_name": "Pickle Flow",
+        "description": "Pickleball court queue manager",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#f5f0eb",
+        "theme_color": "#2f6b1f",
+        "orientation": "portrait-primary",
+        "icons": [
+            {
+                "src": "/static/icon-192.png",
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any"
+            },
+            {
+                "src": "/static/icon-512.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any"
+            }
+        ]
+    })
 
 
 if __name__ == "__main__":
