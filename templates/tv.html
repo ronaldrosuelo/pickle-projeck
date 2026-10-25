@@ -809,16 +809,6 @@
           serverTimeOffset = (Date.now() / 1000) - data.server_time;
         }
 
-        // Render up-next deck from server
-        renderUpNext(data.deck || []);
-
-        // Update focus mode based on server state
-        const shouldFocus = data.focus !== null && data.focus !== undefined;
-        applyFocusMode(shouldFocus);
-        if (shouldFocus && data.focus !== focusedCourtIdx) {
-          focusedCourtIdx = data.focus;
-        }
-
         /* Detect newly-filled courts and show popup */
         if (prevCourts !== null) {
           data.courts.forEach((c, idx) => {
@@ -833,11 +823,8 @@
         const courtsEl = document.getElementById('courts-container');
         courtsEl.innerHTML = '';
         
-        /* Check if a court is focused (from index.html) */
-        const focusedCourt = localStorage.getItem('focusedCourt');
-        const focusIdx = focusedCourt !== null ? parseInt(focusedCourt) : -1;
-        
-        /* Only focus if the court index is valid */
+        /* Focused court comes from the server (set by the 📺 Focus button on the index page) */
+        const focusIdx = (data.focus === null || data.focus === undefined) ? -1 : Number(data.focus);
         const validFocusIdx = (focusIdx >= 0 && focusIdx < data.courts.length) ? focusIdx : -1;
         
         /* Set focus attribute for CSS */
@@ -905,7 +892,7 @@
 
         /* Up Next deck (from the index page's deck) */
         lastQueueIds = new Set((data.queue || []).map(p => p.id));
-        renderUpNext();
+        renderUpNext(data.deck || []);
       } catch(err) { console.error('TV refresh error:', err); }
     }
 
@@ -956,10 +943,15 @@
       } else if (fsByFocus) {
         /* Esc (or F11) left fullscreen → also leave focus mode */
         fsByFocus = false;
-        localStorage.removeItem('focusedCourt');
-        refresh();
+        clearFocus();
       }
     });
+
+    function clearFocus() {
+      fetch('/api/focus', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ court: null }) })
+        .then(() => refresh()).catch(() => {});
+    }
 
     /* Listen for focus changes from index.html */
     window.addEventListener('storage', (e) => {
@@ -970,10 +962,7 @@
     
     /* ESC key to clear focus on TV view */
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        localStorage.removeItem('focusedCourt');
-        refresh();
-      }
+      if (e.key === 'Escape' && focusOn) clearFocus();
     });
 
     /* ── Standings table — real-time updates ── */

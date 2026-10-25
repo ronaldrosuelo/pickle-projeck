@@ -1550,7 +1550,7 @@ def tv_display():
     return render_template("tv.html", results=sorted_results)
 
 
-@app.post("/api/reset")
+@app.route("/api/reset", methods=["POST"])
 def reset_state():
     global next_id, last_game_group
     with lock:
@@ -1572,7 +1572,7 @@ def reset_state():
         return jsonify(state())
 
 
-@app.post("/api/deck")
+@app.route("/api/deck", methods=["POST"])
 def set_deck():
     """Set the up-next deck. Body: {"ids": [int, int, int, int]}"""
     data = request.get_json(silent=True) or {}
@@ -1593,7 +1593,7 @@ def set_deck():
         return jsonify(state())
 
 
-@app.post("/api/focus")
+@app.route("/api/focus", methods=["POST"])
 def set_focus():
     """Set the focused court on TV. Body: {"court": int | null}"""
     data = request.get_json(silent=True) or {}
@@ -1610,7 +1610,7 @@ def set_focus():
         return jsonify(state())
 
 
-@app.get("/sw.js")
+@app.route("/sw.js", methods=["GET"])
 def service_worker():
     """Serve service worker with no-cache headers."""
     sw_code = """
@@ -1630,7 +1630,7 @@ self.addEventListener('fetch', () => {}); // Passthrough - no caching for live d
     )
 
 
-@app.get("/manifest.json")
+@app.route("/manifest.json", methods=["GET"])
 def manifest():
     """Serve PWA manifest."""
     return jsonify({
@@ -1661,4 +1661,7 @@ def manifest():
 
 
 if __name__ == "__main__":
+    import os as _os
+    print("=== Pickle Flow running from:", _os.path.abspath(__file__))
+    print("=== /api/focus registered:", any(r.rule == "/api/focus" for r in app.url_map.iter_rules()))
     app.run(host="0.0.0.0", port=5000, debug=False)

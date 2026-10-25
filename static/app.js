@@ -7,7 +7,9 @@ async function api(path, method = "GET", body) {
     headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await res.json();
+  let data;
+  try { data = await res.json(); }
+  catch (e) { throw new Error(`Server returned HTML (HTTP ${res.status}) for ${method} ${path} - restart Flask / check that this route exists.`); }
   if (!res.ok) throw new Error(data.error || "Something went wrong.");
   return data;
 }
@@ -161,6 +163,14 @@ function unfocusCourtOnTV() {
 
 // Track last deck signature to avoid duplicate sends
 let lastDeckSig = null;
+
+// Publish in team order (Team 1 first, then Team 2) so the TV shows the same teams as the deck
+function publishCurrentDeck() {
+  const ids = currentDeckTeamSplit
+    ? [...currentDeckTeamSplit[0], ...currentDeckTeamSplit[1]]
+    : currentDeckPlayerIds;
+  publishDeck(ids);
+}
 
 function publishDeck(playerIds) {
   // Create a signature of the current deck to detect changes
@@ -483,7 +493,7 @@ function renderDeckInner(queue, perGame, courts) {
       
       currentDeckTeamSplit = computeTeamSplit(deck);
       deckLoaded = true;
-      publishDeck(currentDeckPlayerIds);  // Send deck to server
+      publishCurrentDeck();  // Send deck to server
       render(lastState);
     }, "", "Show the next group of players");
     loadBtn.disabled = checkedIn.length < perGame;
@@ -607,7 +617,7 @@ function renderDeckInner(queue, perGame, courts) {
     }
     
     currentDeckTeamSplit = computeTeamSplit(deck);
-    publishDeck(currentDeckPlayerIds);  // Send updated deck to server
+    publishCurrentDeck();  // Send updated deck to server
     render(lastState);
   }, "quiet", "Choose a different group");
 
@@ -858,21 +868,6 @@ async function refresh() {
 refresh();
 setInterval(refresh, 3000);
 
-/* ── Share the "Up next deck" with the TV view (same browser, same origin) ──
- * Saves the current deck (ordered Team 1 then Team 2) to localStorage so
- * tv.html can show it in the lower-right "Up Next" panel. */
-function publishDeck(queue) {
-  let players = [];
-  if (deckLoaded && currentDeckPlayerIds.length) {
-    let ids = currentDeckPlayerIds;
-    if (currentDeckTeamSplit) ids = [...currentDeckTeamSplit[0], ...currentDeckTeamSplit[1]];
-    players = ids.map(id => queue.find(p => p.id === id)).filter(Boolean)
-      .map(p => ({ id: p.id, name: p.name, avatar: p.avatar || null }));
-  }
-  try { localStorage.setItem("pickleDeck", JSON.stringify({ players, t: Date.now() })); } catch (e) {}
-}
-
 function renderDeck(queue, perGame, courts) {
   renderDeckInner(queue, perGame, courts);
-  publishDeck(queue);
 }
