@@ -217,18 +217,19 @@
     #popup {
       width: 100%; height: 100%;
       display: grid; grid-template-columns: 1fr 1fr;
-      align-items: stretch; gap: 2rem;
-      padding: 2rem 3rem; position: relative;
+      align-items: stretch; gap: 3rem;
+      padding: 2rem; position: relative;
     }
     #popup::before {
       content: ""; position: absolute; inset: 1rem;
       border: 2px dashed rgba(245,220,190,0.18); border-radius: 20px; pointer-events: none;
     }
     #popup-court {
-      font: 700 15rem/0.9 var(--font-display); letter-spacing: 0.22em; text-transform: uppercase;
+      font: 700 12rem/1 var(--font-display); letter-spacing: 0.22em; text-transform: uppercase;
       color: rgba(245,225,185,0.7);
       text-shadow: 0 2px 8px rgba(0,0,0,0.4);
       display: flex; align-items: center; justify-content: center;
+      width: 100%; height: 100%;
     }
     #popup-title {
       display: none;
@@ -236,7 +237,7 @@
     #popup-teams {
       display: grid; grid-template-columns: 1fr;
       align-items: stretch; gap: 1.5rem;
-      width: 100%;
+      width: 100%; height: 100%;
     }
     .popup-team {
       display: grid; grid-template-rows: 1fr 1fr; align-items: center;
@@ -282,8 +283,8 @@
       display: none;
     }
     #popup-bar-wrap {
-      position: absolute; bottom: 1.5rem; left: 3rem; right: 3rem;
-      height: 5px; background: rgba(0,0,0,0.3); border-radius: 3px; overflow: hidden;
+      position: absolute; bottom: 1rem; left: 2rem; right: 2rem;
+      height: 4px; background: rgba(0,0,0,0.3); border-radius: 3px; overflow: hidden;
     }
     #popup-bar {
       height: 100%; width: 100%; border-radius: 3px; transform-origin: left;
