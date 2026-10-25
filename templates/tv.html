@@ -220,10 +220,6 @@
       align-items: stretch; gap: 3rem;
       padding: 2rem; position: relative;
     }
-    #popup::before {
-      content: ""; position: absolute; inset: 1rem;
-      border: 2px dashed rgba(245,220,190,0.18); border-radius: 20px; pointer-events: none;
-    }
     #popup-court {
       font: 700 12rem/1 var(--font-display); letter-spacing: 0.22em; text-transform: uppercase;
       color: rgba(245,225,185,0.7);
@@ -435,13 +431,11 @@
   <div id="popup-overlay">
     <div id="popup">
       <div id="popup-court">Court 1</div>
-      <div id="popup-title">Now Playing</div>
       <div id="popup-teams">
         <div class="popup-team" id="popup-team1-wrap">
           <div class="popup-team-label">Team 1</div>
           <div id="popup-team1"></div>
         </div>
-        <div id="popup-vs">VS</div>
         <div class="popup-team" id="popup-team2-wrap">
           <div class="popup-team-label">Team 2</div>
           <div id="popup-team2"></div>
