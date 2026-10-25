@@ -245,15 +245,18 @@
       border-radius: 18px; padding: 1.8rem 1.5rem;
     }
     /* Team colors in the popup */
-    #popup-team1-wrap { background: rgba(110,190,80,0.28); border-color: rgba(170,230,140,0.45); }
-    #popup-team2-wrap { background: rgba(240,150,50,0.26); border-color: rgba(255,200,130,0.45); }
+    #popup-team1-wrap { background: linear-gradient(180deg, #eaf7e4, #d4edc7); border: 2px solid #a9d495; }
+    #popup-team2-wrap { background: linear-gradient(180deg, #fff1e2, #ffddb8); border: 2px solid #f2b878; }
     .popup-team-label {
       font: 800 1.2rem/1 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase;
       color: var(--beige-light); text-shadow: 0 1px 4px rgba(0,0,0,0.5);
       font-weight: 900;
     }
+    #popup-team1-wrap .popup-team-label { color: #2f6b1f; }
+    #popup-team2-wrap .popup-team-label { color: #b45a00; }
     .popup-player {
-      display: flex; flex-direction: column; align-items: center; gap: 0.75rem;
+      display: flex; align-items: center; gap: 2rem;
+      width: 100%;
     }
     .popup-player img, .popup-player .popup-ph {
       width: 12rem; height: 12rem;
@@ -267,8 +270,9 @@
     }
     .popup-player .popup-ph svg { width: 55%; height: 55%; fill: rgba(245,225,185,0.85); }
     .popup-player-name {
-      font: 800 5rem/1.15 var(--font-display); color: var(--beige-light);
-      text-shadow: 0 2px 8px rgba(0,0,0,0.55); text-align: center; overflow-wrap: anywhere;
+      font: 800 5rem/1.15 var(--font-display); color: #333;
+      text-shadow: none; text-align: left; overflow-wrap: anywhere;
+      flex: 1;
     }
     #popup-vs {
       display: flex; align-items: center; justify-content: center;
