@@ -214,32 +214,32 @@
       visibility: visible; opacity: 1;
       transition: opacity 0.35s ease, visibility 0s linear 0s;
     }
+    /* Layout: big court number on the left, Team 1 / Team 2 boxes stacked on the right.
+       Everything is sized with vh/vw so it always fits the screen (TV or laptop). */
     #popup {
-      width: 100%; height: 100%;
-      display: grid; grid-template-columns: 1fr 1fr;
-      align-items: stretch; gap: 3rem;
-      padding: 2rem; position: relative;
+      width: 100%; height: 100%; box-sizing: border-box;
+      display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 6fr);
+      align-items: stretch; gap: 3vw;
+      padding: 4vh 3vw 6vh; position: relative; overflow: hidden;
     }
     #popup-court {
-      font: 700 12rem/1 var(--font-display); letter-spacing: 0.22em; text-transform: uppercase;
-      color: rgba(245,225,185,0.7);
-      text-shadow: 0 2px 8px rgba(0,0,0,0.4);
-      display: flex; align-items: center; justify-content: center;
-      width: 100%; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-width: 0; min-height: 0; text-align: center;
+      color: rgba(245,225,185,0.85); text-shadow: 0 4px 16px rgba(0,0,0,0.45);
+      font-family: var(--font-display); text-transform: uppercase; line-height: 1;
     }
-    #popup-title {
-      display: none;
-    }
+    #popup-court .pc-label { font-weight: 700; font-size: min(7vw, 13vh); letter-spacing: 0.22em; padding-left: 0.25em; }
+    #popup-court .pc-num   { font-weight: 800; font-size: min(28vw, 58vh); line-height: 0.95; }
+    #popup-title { display: none; }
     #popup-teams {
-      display: grid; grid-template-columns: 1fr;
-      align-items: stretch; gap: 1.5rem;
-      width: 100%; height: 100%;
+      display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr));
+      gap: 3vh; min-width: 0; min-height: 0; height: 100%;
     }
     .popup-team {
-      display: grid; grid-template-rows: 1fr 1fr; align-items: center;
-      padding: 1.5rem 1.2rem;
-      border-radius: 8px; min-height: 0; min-width: 0; overflow: hidden;
+      display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 1vh;
+      padding: 2vh 2vw; border-radius: 14px; min-height: 0; min-width: 0; overflow: hidden;
       background: #fff; border: 1px solid #eee;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.3);
     }
     /* Team colors: Team 1 = soft green, Team 2 = soft orange (complementary) */
     #popup-team1-wrap { background: linear-gradient(180deg, #eaf7e4, #d4edc7); border: 1px solid #a9d495; }
@@ -247,37 +247,30 @@
     #popup-team1-wrap .popup-player img, #popup-team1-wrap .popup-player .popup-ph { border-color: #7fbf63; }
     #popup-team2-wrap .popup-player img, #popup-team2-wrap .popup-player .popup-ph { border-color: #f0a04b; }
     .popup-team-label {
-      font: 800 0.8rem/1 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase;
+      font: 900 min(6vh, 3.2vw)/1 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase;
       color: #333;
-      font-weight: 900;
-      margin-bottom: 0.5rem;
-      grid-column: 1 / -1;
     }
     #popup-team1-wrap .popup-team-label { color: #2f6b1f; }
     #popup-team2-wrap .popup-team-label { color: #b45a00; }
-    .popup-player {
-      display: flex; align-items: center; gap: 1.5rem;
-      width: 100%;
+    #popup-team1, #popup-team2 {
+      display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); align-items: center;
+      min-height: 0; min-width: 0;
     }
+    .popup-player { display: flex; align-items: center; gap: 2vw; width: 100%; min-width: 0; min-height: 0; }
     .popup-player img, .popup-player .popup-ph {
-      width: 12rem; height: 12rem;
-      border-radius: 50%; object-fit: cover;
-      border: 2px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      flex-shrink: 0;
+      width: min(13vh, 8vw); height: min(13vh, 8vw);
+      border-radius: 50%; object-fit: cover; flex-shrink: 0;
+      border: 3px solid #ddd; box-shadow: 0 2px 6px rgba(0,0,0,0.15);
     }
-    .popup-player .popup-ph {
-      background: #f5f5f5;
-      display: flex; align-items: center; justify-content: center; overflow: hidden;
-    }
+    .popup-player .popup-ph { background: #f5f5f5; display: flex; align-items: center; justify-content: center; overflow: hidden; }
     .popup-player .popup-ph svg { width: 60%; height: 60%; fill: #bbb; }
     .popup-player-name {
-      font: 800 5rem/1.15 var(--font-display); color: #333;
-      text-shadow: none; text-align: left; overflow-wrap: anywhere;
-      flex: 1;
+      flex: 1; min-width: 0;
+      font: 800 min(7.5vh, 4.4vw)/1.1 var(--font-display); color: #333;
+      text-align: left; overflow-wrap: anywhere;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     }
-    #popup-vs {
-      display: none;
-    }
+    #popup-vs { display: none; }
     #popup-bar-wrap {
       position: absolute; bottom: 1rem; left: 2rem; right: 2rem;
       height: 4px; background: rgba(0,0,0,0.3); border-radius: 3px; overflow: hidden;
@@ -430,7 +423,7 @@
   <!-- Full-screen popup -->
   <div id="popup-overlay">
     <div id="popup">
-      <div id="popup-court">Court 1</div>
+      <div id="popup-court"><span class="pc-label">Court</span><span class="pc-num">1</span></div>
       <div id="popup-teams">
         <div class="popup-team" id="popup-team1-wrap">
           <div class="popup-team-label">Team 1</div>
@@ -704,7 +697,7 @@
       const myId = ++popupId;
       if (popupTimer) { clearTimeout(popupTimer); popupTimer = null; }
 
-      document.getElementById('popup-court').textContent = `Court ${courtIdx + 1}`;
+      document.getElementById('popup-court').innerHTML = `<span class="pc-label">Court</span><span class="pc-num">${courtIdx + 1}</span>`;
       const t1 = document.getElementById('popup-team1');
       const t2 = document.getElementById('popup-team2');
       t1.innerHTML = ''; t2.innerHTML = '';
@@ -873,6 +866,14 @@
     /* Listen for focus changes from index.html */
     window.addEventListener('storage', (e) => {
       if (e.key === 'focusedCourt') {
+        if (localStorage.getItem('focusedCourt') !== null) {
+          // Request fullscreen when focus is activated
+          if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(err => {
+              console.log('Fullscreen request failed:', err);
+            });
+          }
+        }
         refresh(); /* Re-render courts based on new focus */
       }
     });
@@ -881,6 +882,12 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         localStorage.removeItem('focusedCourt');
+        // Exit fullscreen
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(err => {
+            console.log('Exit fullscreen failed:', err);
+          });
+        }
         refresh();
       }
     });
