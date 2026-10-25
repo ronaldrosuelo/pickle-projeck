@@ -25,6 +25,7 @@ queue_join_times  = {}  # player_id   -> unix timestamp (float) when joined queu
 just_finished_players = {}  # player_id -> timestamp when they just finished a game
 last_game_group = set()  # Track the last 4 players who played together to avoid immediate rematch
 results = {}  # name_lower -> {"w": 0, "l": 0}
+_game_seq = count(1)  # unique id for each finished game (used for editing scores)
 game_history = []  # List of completed games with details: [{"court": n, "team1": [...], "team2": [...], "winner": 1|2, "score1": s1, "score2": s2}, ...]
 together = {}  # (name_a, name_b) -> games in the same game
 partners = {}  # (name_a, name_b) -> games as teammates
@@ -32,7 +33,9 @@ locked_with = {}  # player_id -> partner player_id
 sse_clients = []  # list of queues to broadcast standings updates
 
 # Server-side state for deck and focus (instead of localStorage)
-deck_ids = []  # Ordered list of player IDs for the up-next deck
+DECK_COUNT = 4
+# Up-next decks: each deck is 4 slots of player ids (or None). Slots 0-1 = Team 1, slots 2-3 = Team 2.
+decks = [[None] * PLAYERS_PER_GAME for _ in range(DECK_COUNT)]
 ui = {"focus": None}  # Focused court index or None
 
 
@@ -86,8 +89,12 @@ def state():
     checked_in_count = sum(1 for p in queue if p.get("checked_in", False))
     now = time.time()
     
-    # Build deck from deck_ids
-    deck = [tally(p) for p_id in deck_ids for p in queue if p["id"] == p_id]
+    # Up-next decks (drop anyone who left / un-checked-in first)
+    prune_decks()
+    by_id = {p["id"]: p for p in queue}
+    decks_view = [{"slots": [tally(by_id[v]) if v is not None else None for v in d],
+                   "complete": all(v is not None for v in d)} for d in decks]
+    deck = [x for x in decks_view[0]["slots"] if x] if decks_view else []   # legacy flat deck
     
     # Validate focus court
     focus = ui["focus"]
@@ -105,6 +112,7 @@ def state():
         "queue_join_times":  {str(k): v for k, v in queue_join_times.items()},
         "server_time": now,
         "deck": deck,
+        "decks": decks_view,
         "focus": focus,
     }
 
@@ -251,6 +259,123 @@ def split_teams(group):
     if random.random() < 0.5:
         t1, t2 = t2, t1
     return [*t1, *t2]
+
+
+def prune_decks():
+    """Remove players from decks if they left the queue, un-checked-in, or appear twice."""
+    ok = {p["id"] for p in queue if p.get("checked_in", False)}
+    seen = set()
+    for d in decks:
+        for i, pid in enumerate(d):
+            if pid is None:
+                continue
+            if pid not in ok or pid in seen:
+                d[i] = None
+            else:
+                seen.add(pid)
+
+
+def ids_in_decks(skip=None):
+    return {pid for i, d in enumerate(decks) if i != skip for pid in d if pid is not None}
+
+
+def _opp_count(a, b):
+    """How many times a and b were opponents (together minus times as partners)."""
+    k = pair(a, b)
+    return max(0, together.get(k, 0) - partners.get(k, 0))
+
+
+def _repeat_score(cand, mates, opps, count_partner=True):
+    score = sum(_opp_count(cand, o) for o in opps)
+    if count_partner:
+        score += sum(partners.get(pair(cand, m), 0) for m in mates)
+    return score
+
+
+def autofill_deck(slots, only=None, exclude=()):
+    """Fill empty slots of one deck (list of 4 ids/None) in place.
+
+    Rules:
+      1st priority - longest waiting checked-in player.
+      2nd priority - skip anyone who would repeat a partner or an opponent
+                     (compared with the players already in the deck); if every
+                     candidate repeats, the one with the fewest repeats wins.
+    Locked partners are always placed together on the same team.
+    `only` = fill just that slot index. Returns True if every requested slot got filled.
+    """
+    now = time.time()
+    by_id = {p["id"]: p for p in queue}
+    targets = [only] if only is not None else [i for i, v in enumerate(slots) if v is None]
+    for s in targets:
+        if slots[s] is not None:
+            continue
+        taken = {v for v in slots if v is not None}
+        pool = [p for p in queue
+                if p.get("checked_in", False) and p["id"] not in taken and p["id"] not in exclude]
+        pool.sort(key=lambda p: queue_join_times.get(p["id"], now))      # longest waiting first
+        pool_ids = {p["id"] for p in pool}
+        mate_slot = s ^ 1
+        mate = by_id.get(slots[mate_slot]) if slots[mate_slot] is not None else None
+        opps = [by_id[slots[i]] for i in ((2, 3) if s < 2 else (0, 1)) if slots[i] is not None]
+
+        forced = None   # the placed teammate has a locked partner who is still available
+        if mate is not None:
+            lp = locked_with.get(mate["id"])
+            if lp is not None and lp in pool_ids:
+                forced = lp
+
+        options = []    # (score, candidate, partner_to_place_in_mate_slot or None)
+        for p in pool:
+            if forced is not None and p["id"] != forced:
+                continue
+            lp = locked_with.get(p["id"])
+            partner = by_id.get(lp) if lp is not None else None
+            partner_avail = partner is not None and lp in pool_ids
+            if lp is not None and lp in taken:
+                if slots[mate_slot] != lp:        # locked partner is on the other team
+                    continue
+                options.append((_repeat_score(p, [], opps), p, None))
+            elif partner_avail:
+                if slots[mate_slot] is not None:  # need both slots of a team for a locked pair
+                    continue
+                options.append((_repeat_score(p, [], opps) + _repeat_score(partner, [], opps), p, partner))
+            else:
+                options.append((_repeat_score(p, [mate] if mate else [], opps), p, None))
+
+        if not options:
+            return False
+        best = next((o for o in options if o[0] == 0), None) or min(options, key=lambda o: o[0])
+        slots[s] = best[1]["id"]
+        if best[2] is not None:
+            slots[mate_slot] = best[2]["id"]
+    return all(slots[i] is not None for i in targets)
+
+
+def take_deck(i):
+    """Remove deck i (it is being played) and add a fresh empty one at the end."""
+    ids = list(decks[i])
+    decks.pop(i)
+    decks.append([None] * PLAYERS_PER_GAME)
+    return ids
+
+
+def next_game_ids():
+    """Players for 'Start next game': first full deck, else complete the first started deck,
+    else build a brand-new group. Uses the same wait-time / no-repeat logic."""
+    prune_decks()
+    for i, d in enumerate(decks):
+        if all(v is not None for v in d):
+            return take_deck(i)
+    for i, d in enumerate(decks):
+        if any(v is not None for v in d):
+            for exclude in (ids_in_decks(skip=i), set()):
+                tmp = list(d)
+                if autofill_deck(tmp, exclude=exclude):
+                    decks[i][:] = tmp
+                    return take_deck(i)
+            return None
+    tmp = [None] * PLAYERS_PER_GAME
+    return tmp if autofill_deck(tmp) else None
 
 
 def record_game(teams):
@@ -810,14 +935,13 @@ def start(n):
             # Always use split_teams so locked partners end up on the same team
             courts[n] = split_teams(group)
         else:
-            idx, checked = pick_group()
-            if idx is None:
+            ids = next_game_ids()
+            if ids is None:
                 return error("Need at least 4 checked-in players to start a game.")
-            group = [checked[i] for i in idx]
-            # Remove from the main queue by id
-            picked_ids = {p["id"] for p in group}
-            queue[:] = [p for p in queue if p["id"] not in picked_ids]
-            courts[n] = split_teams(group)
+            by_id = {p["id"]: p for p in queue}
+            group = [by_id[i] for i in ids]            # slot order = Team 1, Team 2
+            queue[:] = [p for p in queue if p["id"] not in set(ids)]
+            courts[n] = group
                 
         record_game(courts[n])
         court_start_times[n] = time.time()  # record start time
@@ -854,6 +978,8 @@ def finish(n):
             
             # Store game in history
             game_history.append({
+                "id": next(_game_seq),
+                "ts": time.time(),
                 "court": n + 1,
                 "team1": [{"name": p["name"]} for p in (courts[n][:2] if winner == 1 else courts[n][2:])],
                 "team2": [{"name": p["name"]} for p in (courts[n][2:] if winner == 1 else courts[n][:2])],
@@ -977,9 +1103,9 @@ def toggle_checkin(player_id):
         p = next((p for p in queue if p["id"] == player_id), None)
         if p is None:
             return error("Player not found in queue.", 404)
-        # Toggle checked-in status
+        # Check in only (no un-check: use Break or Leave instead)
         was_checked = p.get("checked_in", False)
-        p["checked_in"] = not was_checked
+        p["checked_in"] = True
         # Record join time when they check in
         if not was_checked and player_id not in queue_join_times:
             queue_join_times[player_id] = time.time()
@@ -1550,7 +1676,63 @@ def tv_display():
     return render_template("tv.html", results=sorted_results)
 
 
-@app.route("/api/reset", methods=["POST"])
+def _apply_game(g, sign):
+    """Add (sign=+1) or remove (sign=-1) one game's effect on results (w/l/pts)."""
+    d = g["score1"] - g["score2"]          # team1 = winners as stored
+    for p in g["team1"]:
+        r = results.setdefault(p["name"].lower(), {"w": 0, "l": 0, "pts": 0})
+        r["w"] += sign
+        r["pts"] = r.get("pts", 0) + sign * d
+    for p in g["team2"]:
+        r = results.setdefault(p["name"].lower(), {"w": 0, "l": 0, "pts": 0})
+        r["l"] += sign
+        r["pts"] = r.get("pts", 0) - sign * d
+
+
+def _games_view(limit=50):
+    out = []
+    for g in reversed(game_history[-limit:]):      # newest first
+        out.append({
+            "id": g.get("id"), "court": g.get("court"), "ts": g.get("ts"),
+            "team1": [p["name"] for p in g["team1"]],
+            "team2": [p["name"] for p in g["team2"]],
+            "score1": g["score1"], "score2": g["score2"],
+        })
+    return out
+
+
+@app.get("/api/games")
+def list_games():
+    with lock:
+        return jsonify({"games": _games_view()})
+
+
+@app.post("/api/games/<int:gid>/score")
+def edit_game_score(gid):
+    data = request.get_json(silent=True) or {}
+    try:
+        s1, s2 = int(data.get("score1")), int(data.get("score2"))
+    except (TypeError, ValueError):
+        return error("Enter both scores as numbers.")
+    if not (0 <= s1 <= 99 and 0 <= s2 <= 99):
+        return error("Scores must be between 0 and 99.")
+    if s1 == s2:
+        return error("Scores can't be tied - one team must win.")
+    with lock:
+        g = next((x for x in game_history if x.get("id") == gid), None)
+        if g is None:
+            return error("Game not found.")
+        _apply_game(g, -1)                         # undo old result
+        if s2 > s1:                                # other side actually won -> swap teams
+            g["team1"], g["team2"] = g["team2"], g["team1"]
+            s1, s2 = s2, s1
+        g["score1"], g["score2"] = s1, s2
+        _apply_game(g, +1)                         # apply corrected result
+        broadcast_standings()
+        return jsonify({"games": _games_view()})
+
+
+@app.post("/api/reset")
 def reset_state():
     global next_id, last_game_group
     with lock:
@@ -1567,33 +1749,110 @@ def reset_state():
         partners.clear()
         locked_with.clear()
         last_game_group.clear()
-        deck_ids[:] = []  # Clear server-side deck
+        for d in decks:
+            d[:] = [None] * PLAYERS_PER_GAME  # Clear server-side decks
         ui["focus"] = None  # Clear server-side focus
         return jsonify(state())
 
 
-@app.route("/api/deck", methods=["POST"])
-def set_deck():
-    """Set the up-next deck. Body: {"ids": [int, int, int, int]}"""
+@app.post("/api/decks/<int:i>/slot")
+def deck_set_slot(i):
+    """Put a player into a slot (or clear it with player_id = null). Body: {"slot": 0-3, "player_id": id|null}"""
     data = request.get_json(silent=True) or {}
-    ids = data.get("ids", [])
-    
+    slot, pid = data.get("slot"), data.get("player_id")
     with lock:
-        # Validate: must be 4 player IDs, all in queue
-        if len(ids) != PLAYERS_PER_GAME:
-            return error(f"Deck must have exactly {PLAYERS_PER_GAME} players.", 400)
-        
-        queue_ids = {p["id"] for p in queue}
-        for player_id in ids:
-            if player_id not in queue_ids:
-                return error(f"Player {player_id} not in queue.", 404)
-        
-        # Store on server
-        deck_ids[:] = ids
+        if not 0 <= i < len(decks):
+            return error("Deck not found.", 404)
+        if not isinstance(slot, int) or not 0 <= slot < PLAYERS_PER_GAME:
+            return error("Bad slot.")
+        prune_decks()
+        if pid is None:
+            decks[i][slot] = None
+            return jsonify(state())
+        p = next((q for q in queue if q["id"] == pid), None)
+        if p is None:
+            return error("That player is no longer in the queue.")
+        if not p.get("checked_in", False):
+            return error(f"{p['name']} must be checked in first.")
+        lp = locked_with.get(pid)
+        if lp is not None:
+            for j, v in enumerate(decks[i]):
+                if v == lp and (j < 2) != (slot < 2):
+                    return error(f"{p['name']} is locked with a partner - they must be on the same team.")
+        old = next(((di, dj) for di, d in enumerate(decks) for dj, v in enumerate(d) if v == pid), None)
+        displaced = decks[i][slot]
+        decks[i][slot] = pid
+        if old is not None and old != (i, slot):
+            decks[old[0]][old[1]] = displaced            # swap places
         return jsonify(state())
 
 
-@app.route("/api/focus", methods=["POST"])
+@app.post("/api/decks/<int:i>/clear")
+def deck_clear(i):
+    with lock:
+        if not 0 <= i < len(decks):
+            return error("Deck not found.", 404)
+        decks[i][:] = [None] * PLAYERS_PER_GAME
+        return jsonify(state())
+
+
+@app.post("/api/decks/<int:i>/fill")
+def deck_fill(i):
+    """Auto-fill empty slots. Body: {"slot": 0-3} to fill only that slot, else all empty slots."""
+    data = request.get_json(silent=True) or {}
+    slot = data.get("slot")
+    with lock:
+        if not 0 <= i < len(decks):
+            return error("Deck not found.", 404)
+        prune_decks()
+        only = slot if isinstance(slot, int) and 0 <= slot < PLAYERS_PER_GAME else None
+        ok = autofill_deck(decks[i], only=only, exclude=ids_in_decks(skip=i))
+        if not ok:
+            return error("Not enough available checked-in players to fill every slot.")
+        return jsonify(state())
+
+
+@app.post("/api/decks/fill-all")
+def deck_fill_all():
+    with lock:
+        prune_decks()
+        for i in range(len(decks)):
+            autofill_deck(decks[i], exclude=ids_in_decks(skip=i))
+        return jsonify(state())
+
+
+@app.post("/api/decks/clear-all")
+def deck_clear_all():
+    with lock:
+        for d in decks:
+            d[:] = [None] * PLAYERS_PER_GAME
+        return jsonify(state())
+
+
+@app.post("/api/decks/<int:i>/start")
+def deck_start(i):
+    """Send a full deck to a free court. Body: {"court": n}"""
+    data = request.get_json(silent=True) or {}
+    n = data.get("court")
+    with lock:
+        if not 0 <= i < len(decks):
+            return error("Deck not found.", 404)
+        prune_decks()
+        if not isinstance(n, int) or not 0 <= n < len(courts) or courts[n]:
+            return error("That court is not free.")
+        if any(v is None for v in decks[i]):
+            return error("This deck is not full yet.")
+        by_id = {p["id"]: p for p in queue}
+        ids = take_deck(i)
+        group = [by_id[x] for x in ids]
+        queue[:] = [p for p in queue if p["id"] not in set(ids)]
+        courts[n] = group                         # keep the deck's exact teams
+        record_game(courts[n])
+        court_start_times[n] = time.time()
+        return jsonify(state())
+
+
+@app.post("/api/focus")
 def set_focus():
     """Set the focused court on TV. Body: {"court": int | null}"""
     data = request.get_json(silent=True) or {}
@@ -1610,7 +1869,7 @@ def set_focus():
         return jsonify(state())
 
 
-@app.route("/sw.js", methods=["GET"])
+@app.get("/sw.js")
 def service_worker():
     """Serve service worker with no-cache headers."""
     sw_code = """
@@ -1630,7 +1889,7 @@ self.addEventListener('fetch', () => {}); // Passthrough - no caching for live d
     )
 
 
-@app.route("/manifest.json", methods=["GET"])
+@app.get("/manifest.json")
 def manifest():
     """Serve PWA manifest."""
     return jsonify({

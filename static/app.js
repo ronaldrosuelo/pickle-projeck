@@ -25,10 +25,6 @@ let names = new Map();
 let lastState = null;
 let pending = null;
 
-let deckLoaded = false;
-let currentDeckPlayerIds = [];  // Store just IDs, not full objects
-let currentDeckTeamSplit = null;  // Store the locked team assignment
-let deckSentJustNow = false;  // Flag to prevent auto-gen right after sending to court
 let prevCourts = null; // null = first render, don't announce yet
 
 const person = (p) => {
@@ -159,26 +155,6 @@ function unfocusCourtOnTV() {
   run("/api/focus", { court: null });
   msg.textContent = '📺 Unfocused - showing all courts on TV';
   setTimeout(() => { msg.textContent = ''; }, 2000);
-}
-
-// Track last deck signature to avoid duplicate sends
-let lastDeckSig = null;
-
-// Publish in team order (Team 1 first, then Team 2) so the TV shows the same teams as the deck
-function publishCurrentDeck() {
-  const ids = currentDeckTeamSplit
-    ? [...currentDeckTeamSplit[0], ...currentDeckTeamSplit[1]]
-    : currentDeckPlayerIds;
-  publishDeck(ids);
-}
-
-function publishDeck(playerIds) {
-  // Create a signature of the current deck to detect changes
-  const sig = JSON.stringify(playerIds);
-  if (sig === lastDeckSig) return;  // Already sent this deck
-  
-  lastDeckSig = sig;
-  run("/api/deck", { ids: playerIds });
 }
 
 /* Server calls for the new actions. Needs POST /api/courts/<i>/swap and /replace on the Flask side. */
@@ -390,271 +366,6 @@ function openScoreModal(courtIdx, winner, players) {
   setTimeout(() => sWin.focus(), 50);
 }
 
-/* Partner-aware deck picker.
- * Treats locked pairs as a single unit so both always appear together.
- * Returns an array of `perGame` player objects, or falls back to random. */
-function pickDeckGroup(queue, perGame, queueJoinTimes = null, serverOffset = 0) {
-  // Build units: locked pairs count as one unit of size 2
-  const seen = new Set();
-  const units = [];
-  for (const p of queue) {
-    if (seen.has(p.id)) continue;
-    seen.add(p.id);
-    if (p.partner_id && queue.some(q => q.id === p.partner_id)) {
-      const partner = queue.find(q => q.id === p.partner_id);
-      seen.add(p.partner_id);
-      units.push([p, partner]);
-    } else {
-      units.push([p]);
-    }
-  }
-
-  // Sort units by wait time (longest waiting first) if we have join times
-  if (queueJoinTimes && serverOffset !== undefined) {
-    units.sort((unitA, unitB) => {
-      // Use the first player's wait time for comparison
-      const joinTsA = queueJoinTimes[String(unitA[0].id)];
-      const joinTsB = queueJoinTimes[String(unitB[0].id)];
-      
-      if (joinTsA !== undefined && joinTsB !== undefined) {
-        return joinTsA - joinTsB; // Earliest join time first (longest waiting)
-      }
-      if (joinTsA !== undefined) return -1;
-      if (joinTsB !== undefined) return 1;
-      return 0;
-    });
-  } else {
-    // Fallback to shuffling if no join times
-    units.sort(() => Math.random() - 0.5);
-  }
-
-  const picked = [];
-  for (const unit of units) {
-    if (picked.length + unit.length <= perGame) {
-      picked.push(...unit);
-      if (picked.length === perGame) break;
-    }
-  }
-
-  // If we couldn't fill exactly (e.g. all remaining are pairs and only 1 slot left),
-  // fall back to simple random slice
-  if (picked.length < perGame) {
-    return [...queue].sort(() => Math.random() - 0.5).slice(0, perGame);
-  }
-  return picked;
-}
-
-function renderDeckInner(queue, perGame, courts) {
-  const deckEl = $("#deck");
-  if (!deckEl) return;
-
-  // Only checked-in players are eligible for picking new decks
-  const checkedIn = queue.filter(p => p.checked_in);
-
-  // Only show "need more players" if deck is NOT loaded yet
-  if (!deckLoaded && checkedIn.length < perGame) {
-    currentDeckPlayerIds = [];
-    const need = perGame - checkedIn.length;
-    const msg = queue.length < perGame
-      ? `Need ${perGame - queue.length} more player(s) in queue.`
-      : `Need ${need} more player(s) to check in.`;
-
-    const loadBtn = button("Show Next Deck", null, "", "Show the next group of players");
-    loadBtn.disabled = true;
-
-    deckEl.replaceChildren(
-      el("div", { className: "court deck-card" },
-        el("div", { className: "court-head" }, el("h3", { textContent: "Up next deck" })),
-        el("p", { className: "deck-empty", textContent: msg }),
-        el("div", { className: "court-actions", style: "margin-top: 0.6rem;" }, loadBtn)
-      )
-    );
-    return;
-  }
-
-  if (!deckLoaded) {
-    const loadBtn = button("Show Next Deck", () => {
-      const deck = pickDeckGroup(checkedIn, perGame);
-      currentDeckPlayerIds = deck.map(p => p.id);  // Store only IDs
-      
-      // Compute and lock team split
-      function computeTeamSplit(players) {
-        const [a, b, c, d] = players;
-        const opts = [[[a,b],[c,d]], [[a,c],[b,d]], [[a,d],[b,c]]];
-        const valid = opts.filter(([t1, t2]) => {
-          const ok = (team) => team.every(p =>
-            !p.partner_id || team.some(q => q.id === p.partner_id)
-          );
-          return ok(t1) && ok(t2);
-        });
-        const chosen = valid.length ? valid[Math.floor(Math.random() * valid.length)] : opts[0];
-        return chosen.map(team => team.map(p => p.id));  // Return as IDs
-      }
-      
-      currentDeckTeamSplit = computeTeamSplit(deck);
-      deckLoaded = true;
-      publishCurrentDeck();  // Send deck to server
-      render(lastState);
-    }, "", "Show the next group of players");
-    loadBtn.disabled = checkedIn.length < perGame;
-
-    deckEl.replaceChildren(
-      el("div", { className: "court deck-card" },
-        el("div", { className: "court-head" }, el("h3", { textContent: "Up next deck" })),
-        el("p", { className: "deck-empty", textContent: "Click below to reveal a random group." }),
-        el("div", { className: "court-actions", style: "margin-top: 0.6rem;" }, loadBtn)
-      )
-    );
-    return;
-  }
-
-  // Check if any deck player is completely gone from queue (left/finished)
-  const allQueueIds = new Set(queue.map(p => p.id));
-  
-  // Only regenerate if a player in the deck is COMPLETELY missing from queue
-  const missingFromQueue = currentDeckPlayerIds.filter(id => !allQueueIds.has(id));
-  if (missingFromQueue.length > 0 && deckLoaded) {
-    // A player left queue completely — pick new deck
-    const deck = pickDeckGroup(checkedIn, perGame);
-    currentDeckPlayerIds = deck.map(p => p.id);
-    currentDeckTeamSplit = null;
-  }
-  
-  // NOTE: Do NOT regenerate deck just because wait times changed or players unchecked
-  // The deck stays locked until a player actually LEAVES the queue completely
-
-  // Get the actual player objects by ID, maintaining the locked order
-  const nextPlayers = currentDeckPlayerIds.map(id => queue.find(p => p.id === id)).filter(Boolean);
-
-  // Safety check: if nextPlayers suddenly has fewer players, only reset if they left queue entirely
-  if (nextPlayers.length < currentDeckPlayerIds.length && deckLoaded) {
-    // Some deck players aren't showing up - verify they're actually gone from queue
-    const stillMissing = currentDeckPlayerIds.filter(id => !queue.some(p => p.id === id));
-    if (stillMissing.length === 0) {
-      // All players still in queue, just rendering issue - don't reset
-      // This prevents the deck from disappearing during refresh cycles
-    } else if (stillMissing.length > 0) {
-      // Players actually left — regenerate deck
-      const deck = pickDeckGroup(checkedIn, perGame);
-      currentDeckPlayerIds = deck.map(p => p.id);
-      currentDeckTeamSplit = null;
-      // Update nextPlayers with fresh data
-      const nextPlayersNew = currentDeckPlayerIds.map(id => queue.find(p => p.id === id)).filter(Boolean);
-      if (nextPlayersNew.length === 0) {
-        deckLoaded = false;
-      }
-    }
-  }
-
-  // If deck is now completely empty, show "need more" message
-  if (currentDeckPlayerIds.length === 0 || nextPlayers.length === 0) {
-    deckLoaded = false;
-    currentDeckPlayerIds = [];
-    currentDeckTeamSplit = null;
-    const msg = queue.length < perGame
-      ? `Need ${perGame - queue.length} more player(s) in queue.`
-      : `Need ${need} more player(s) to check in.`;
-
-    const loadBtn = button("Show Next Deck", null, "", "Show the next group of players");
-    loadBtn.disabled = checkedIn.length < perGame;
-
-    deckEl.replaceChildren(
-      el("div", { className: "court deck-card" },
-        el("div", { className: "court-head" }, el("h3", { textContent: "Up next deck" })),
-        el("p", { className: "deck-empty", textContent: msg }),
-        el("div", { className: "court-actions", style: "margin-top: 0.6rem;" }, loadBtn)
-      )
-    );
-    return;
-  }
-
-  // Split preview teams using LOCKED split
-  function previewSplit(players) {
-    const [a, b, c, d] = players;
-    const opts = [[[a,b],[c,d]], [[a,c],[b,d]], [[a,d],[b,c]]];
-    const valid = opts.filter(([t1, t2]) => {
-      const ok = (team) => team.every(p =>
-        !p.partner_id || team.some(q => q.id === p.partner_id)
-      );
-      return ok(t1) && ok(t2);
-    });
-    const chosen = valid.length ? valid[Math.floor(Math.random() * valid.length)] : opts[0];
-    return chosen;
-  }
-  
-  // Use locked split if available, otherwise compute it
-  let team1, team2;
-  if (currentDeckTeamSplit) {
-    team1 = currentDeckTeamSplit[0].map(id => nextPlayers.find(p => p && p.id === id)).filter(Boolean);
-    team2 = currentDeckTeamSplit[1].map(id => nextPlayers.find(p => p && p.id === id)).filter(Boolean);
-  } else {
-    // Filter out any undefined players before splitting
-    const validPlayers = nextPlayers.filter(Boolean);
-    if (validPlayers.length === perGame) {
-      [team1, team2] = previewSplit(validPlayers);
-    } else {
-      team1 = [];
-      team2 = [];
-    }
-  }
-
-  const reshuffleBtn = button("Reshuffle", () => {
-    const deck = pickDeckGroup(checkedIn, perGame);
-    currentDeckPlayerIds = deck.map(p => p.id);
-    
-    // Recompute team split for new deck
-    function computeTeamSplit(players) {
-      const [a, b, c, d] = players;
-      const opts = [[[a,b],[c,d]], [[a,c],[b,d]], [[a,d],[b,c]]];
-      const valid = opts.filter(([t1, t2]) => {
-        const ok = (team) => team.every(p =>
-          !p.partner_id || team.some(q => q.id === p.partner_id)
-        );
-        return ok(t1) && ok(t2);
-      });
-      const chosen = valid.length ? valid[Math.floor(Math.random() * valid.length)] : opts[0];
-      return chosen.map(team => team.map(p => p.id));
-    }
-    
-    currentDeckTeamSplit = computeTeamSplit(deck);
-    publishCurrentDeck();  // Send updated deck to server
-    render(lastState);
-  }, "quiet", "Choose a different group");
-
-  const hideBtn = button("Hide Deck", () => { 
-    deckLoaded = false; 
-    currentDeckTeamSplit = null;
-    render(lastState); 
-  }, "quiet", "Hide current deck");
-
-  const actionsContainer = el("div", { className: "court-actions", style: "margin-top: 0.6rem; display: flex; gap: 0.35rem; flex-wrap: wrap;" }, reshuffleBtn, hideBtn);
-
-  courts.forEach((c, index) => {
-    if (c.length === 0) {
-      const assignBtn = button(`C${index + 1}`, async () => {
-        await run(`/api/courts/${index}/start`, { player_ids: currentDeckPlayerIds });
-        deckLoaded = false;
-        currentDeckPlayerIds = [];
-        currentDeckTeamSplit = null;
-        deckSentJustNow = true;  // Prevent auto-gen on next render
-      }, "", `Send deck to Court ${index + 1}`);
-      actionsContainer.append(assignBtn);
-    }
-  });
-
-  deckEl.replaceChildren(
-    el("div", { className: "court deck-card" },
-      el("div", { className: "court-head" }, el("h3", { textContent: "Up next deck" })),
-      el("div", { className: "team-labels" }, el("span", { textContent: "Team 1" }), el("span", { textContent: "Team 2" })),
-      el("ul", {},
-        ...team1.map(p => el("li", {}, el("span", { textContent: p.name }), record(p))),
-        ...team2.map(p => el("li", {}, el("span", { textContent: p.name }), record(p)))
-      ),
-      actionsContainer
-    )
-  );
-}
-
 function checkinButton(p) {
   const on = p.checked_in;
   const btn = button(
@@ -663,6 +374,7 @@ function checkinButton(p) {
     on ? "checkin-on" : "checkin-off",
     on ? `${p.name} is checked in` : `Check in ${p.name}`
   );
+  if (on) btn.disabled = true;   // already checked in - use Break / Leave instead
   return btn;
 }
 
@@ -672,49 +384,8 @@ function render(data) {
   const { queue, courts, breaks, per_game, max_courts, checked_in_count,
           queue_join_times, server_time } = data;
 
-  // If deck was just sent, don't auto-generate a new one
-  const skipDeckRegeneration = deckSentJustNow;
-  deckSentJustNow = false;  // Reset flag
-
   // Compute client↔server time offset once per render
   const serverOffset = server_time ? (Date.now() / 1000) - server_time : 0;
-
-  // If deck was just sent to court, don't auto-show a new one
-  if (skipDeckRegeneration && !deckLoaded) {
-    // Just show "Click to reveal" button, don't auto-generate
-    const checkedIn = queue.filter(p => p.checked_in);
-    const loadBtn = button("Show Next Deck", () => {
-      const deck = pickDeckGroup(checkedIn, per_game, queue_join_times, serverOffset);
-      currentDeckPlayerIds = deck.map(p => p.id);
-      
-      function computeTeamSplit(players) {
-        const [a, b, c, d] = players;
-        const opts = [[[a,b],[c,d]], [[a,c],[b,d]], [[a,d],[b,c]]];
-        const valid = opts.filter(([t1, t2]) => {
-          const ok = (team) => team.every(p =>
-            !p.partner_id || team.some(q => q.id === p.partner_id)
-          );
-          return ok(t1) && ok(t2);
-        });
-        const chosen = valid.length ? valid[Math.floor(Math.random() * valid.length)] : opts[0];
-        return chosen.map(team => team.map(p => p.id));
-      }
-      
-      currentDeckTeamSplit = computeTeamSplit(currentDeckPlayerIds.map(id => queue.find(p => p.id === id)));
-      deckLoaded = true;
-      render(lastState);
-    }, "", "Show the next group of players");
-    loadBtn.disabled = checkedIn.length < per_game;
-
-    $("#deck").replaceChildren(
-      el("div", { className: "court deck-card" },
-        el("div", { className: "court-head" }, el("h3", { textContent: "Up next deck" })),
-        el("p", { className: "deck-empty", textContent: "Click below to reveal a random group." }),
-        el("div", { className: "court-actions", style: "margin-top: 0.6rem;" }, loadBtn)
-      )
-    );
-    return;
-  }
 
   names = new Map([...queue, ...courts.flat(), ...breaks].map((p) => [p.id, p.name]));
   if (pending && !queue.some((p) => p.id === pending && !p.partner_id)) pending = null;
@@ -736,7 +407,7 @@ function render(data) {
   prevCourts = courts.map((c) => (c ? [...c] : []));
 
   $("#courts").replaceChildren(...courts.map((c, i) => renderCourt(c, i, checked_in_count, per_game)));
-  renderDeck(queue, per_game, courts);
+  renderDecks(data);
 
   $("#add-court").disabled = courts.length >= max_courts;
   $("#remove-court").disabled = courts.length <= 1 || courts[courts.length - 1].length > 0;
@@ -761,9 +432,23 @@ function render(data) {
     return 0;
   });
 
+  // Search + check-in counts for the waiting list
+  const searchEl = $("#queue-search");
+  const term = searchEl ? searchEl.value.trim().toLowerCase() : "";
+  const queuePos = new Map(sortedQueue.map((p, idx) => [p.id, idx + 1]));   // real place in line
+  const visibleQueue = term ? sortedQueue.filter((p) => p.name.toLowerCase().includes(term)) : sortedQueue;
+  const inCount = queue.filter((p) => p.checked_in).length;
+  const statsEl = $("#queue-stats");
+  if (statsEl) {
+    statsEl.replaceChildren(
+      el("span", { className: "stat stat-in", textContent: `✓ ${inCount} checked in` }),
+      el("span", { className: "stat stat-out", textContent: `✗ ${queue.length - inCount} not checked in` }),
+      ...(term ? [el("span", { className: "stat stat-found", textContent: `Showing ${visibleQueue.length} of ${queue.length}` })] : []));
+  }
+
   $("#queue").replaceChildren(
-    ...(sortedQueue.length
-      ? sortedQueue.map((p, i) => {
+    ...(visibleQueue.length
+      ? visibleQueue.map((p) => {
           const joinTs = queue_join_times && queue_join_times[String(p.id)];
           const waitEl = joinTs ? (() => {
             const elapsed = Math.floor((Date.now() / 1000) - serverOffset - joinTs);
@@ -777,7 +462,7 @@ function render(data) {
           })() : null;
 
           const li = el("li", { draggable: true },
-            el("span", { className: "spot", textContent: i + 1 }),
+            el("span", { className: "spot", textContent: queuePos.get(p.id) }),
             person(p),
             ...(waitEl ? [waitEl] : []),
             checkinButton(p),
@@ -797,7 +482,7 @@ function render(data) {
           
           return li;
         })
-      : [el("li", { className: "empty", textContent: "No one waiting. Join to get in line." })]));
+      : [el("li", { className: "empty", textContent: term ? `No waiting player matches "${searchEl.value.trim()}".` : "No one waiting. Join to get in line." })]));
 
   $("#break-h").hidden = breaks.length === 0;
   if (document.getElementById("breaks-section")) document.getElementById("breaks-section").hidden = breaks.length === 0;
@@ -843,13 +528,12 @@ $("#join-form").addEventListener("submit", async (e) => {
   if (!msg.textContent) input.value = "";
   input.focus();
 });
+$("#queue-search").addEventListener("input", () => { if (lastState) render(lastState); });
 $("#add-court").onclick = () => run("/api/courts");
 $("#remove-court").onclick = () => run("/api/courts/remove");
 $("#reset-btn").onclick = () => {
   if (confirm("Reset everything? This clears all players, courts, and records.")) {
-    deckLoaded = false;
-    currentDeckPlayerIds = [];
-    currentDeckTeamSplit = null;
+    deckSig = null;
     prevCourts = null;
     run("/api/reset");
   }
@@ -868,6 +552,207 @@ async function refresh() {
 refresh();
 setInterval(refresh, 3000);
 
-function renderDeck(queue, perGame, courts) {
-  renderDeckInner(queue, perGame, courts);
+/* ── Up next decks (4 editable games) ───────────────────────────
+ * Slots 0-1 = Team 1, slots 2-3 = Team 2. Everything lives on the server.
+ * Auto-fill: longest waiting first, then avoid repeat partners/opponents. */
+let deckSig = null;
+
+function renderDecks(data) {
+  const deckEl = $("#deck");
+  if (!deckEl) return;
+  const { queue, courts, decks } = data;
+  if (!decks) return;
+
+  // Don't rebuild while a dropdown is open, or the list would close under the user's finger.
+  const ae = document.activeElement;
+  if (ae && deckEl.contains(ae) && ae.tagName === "SELECT") return;
+
+  const inDeck = new Set(decks.flatMap((d) => d.slots.filter(Boolean).map((p) => p.id)));
+  const joinTs = data.queue_join_times || {};
+  const pool = queue
+    .filter((p) => p.checked_in && !inDeck.has(p.id))
+    .sort((a, b) => (joinTs[String(a.id)] ?? Infinity) - (joinTs[String(b.id)] ?? Infinity));
+
+  const sig = JSON.stringify([decks, pool.map((p) => [p.id, p.name, p.w, p.l]), courts.map((c) => c.length === 0)]);
+  if (sig === deckSig) return;
+  deckSig = sig;
+
+  const toolbar = el("div", { className: "decks-toolbar" },
+    button("Auto-fill all decks", () => run("/api/decks/fill-all"), "", "Fill every deck automatically"),
+    button("Clear all", () => run("/api/decks/clear-all"), "quiet", "Empty every deck"),
+    el("span", { className: "decks-hint", textContent: "Longest waiting first · avoids repeat partners & opponents" }));
+
+  function slotCell(deckIdx, slotIdx, p) {
+    const cell = el("div", { className: p ? "deck-slot filled" : "deck-slot" });
+    if (p) {
+      cell.append(
+        el("span", { className: "deck-slot-name", textContent: p.name }),
+        record(p),
+        button("✕", () => run(`/api/decks/${deckIdx}/slot`, { slot: slotIdx, player_id: null }), "quiet deck-x", `Remove ${p.name}`));
+      return cell;
+    }
+    const sel = el("select", { className: "deck-select" });
+    sel.setAttribute("aria-label", `Choose player for deck ${deckIdx + 1}, slot ${slotIdx + 1}`);
+    sel.append(el("option", { value: "", textContent: "Choose…" }));
+    pool.forEach((q) => sel.append(el("option", { value: String(q.id), textContent: `${q.name} (${q.w}W ${q.l}L)` })));
+    sel.addEventListener("change", () => {
+      if (sel.value) run(`/api/decks/${deckIdx}/slot`, { slot: slotIdx, player_id: parseInt(sel.value) });
+    });
+    const auto = button("Auto", () => run(`/api/decks/${deckIdx}/fill`, { slot: slotIdx }), "quiet deck-auto",
+      "Fill this slot with the best available player");
+    cell.append(sel, auto);
+    return cell;
+  }
+
+  const cards = decks.map((d, i) => {
+    const sendBtns = courts.map((c, ci) => {
+      if (c.length !== 0) return null;
+      const b = button(`C${ci + 1}`, () => run(`/api/decks/${i}/start`, { court: ci }), "", `Send deck ${i + 1} to Court ${ci + 1}`);
+      b.disabled = !d.complete;
+      return b;
+    }).filter(Boolean);
+
+    return el("div", { className: "court deck-card" },
+      el("div", { className: "court-head" },
+        el("h3", { textContent: `Deck ${i + 1}` }),
+        el("div", { className: "deck-head-btns" },
+          button("Auto-fill", () => run(`/api/decks/${i}/fill`, {}), "quiet", `Fill empty slots of deck ${i + 1}`),
+          button("Clear", () => run(`/api/decks/${i}/clear`), "quiet", `Empty deck ${i + 1}`))),
+      el("div", { className: "deck-teams" },
+        el("div", { className: "deck-team" },
+          el("div", { className: "deck-team-label", textContent: "Team 1" }),
+          slotCell(i, 0, d.slots[0]), slotCell(i, 1, d.slots[1])),
+        el("div", { className: "deck-team" },
+          el("div", { className: "deck-team-label", textContent: "Team 2" }),
+          slotCell(i, 2, d.slots[2]), slotCell(i, 3, d.slots[3]))),
+      el("div", { className: "deck-send" },
+        el("span", { className: "deck-send-label", textContent: d.complete ? "Send to:" : "Fill all 4 slots to send" }),
+        ...(sendBtns.length ? sendBtns : [el("span", { className: "deck-send-label", textContent: "no free court" })])));
+  });
+
+  deckEl.replaceChildren(toolbar, el("div", { className: "decks-grid" }, ...cards));
 }
+
+/* ── Recent matches (edit scores) ─────────────────────────────── */
+// Styles live here (not in index.html) so the modal always looks right, whichever files are deployed.
+const MATCH_CSS = `
+#matches-modal-overlay .score-modal { width:min(640px,96vw); max-height:88vh; padding:1.3rem 1.4rem 1.1rem; display:flex; flex-direction:column; }
+#matches-modal-overlay .modal-header { margin-bottom:0.3rem; }
+#matches-modal-overlay .match-help { margin:0 0 0.8rem; font-size:0.82rem; line-height:1.4; color:var(--ink-muted); }
+#matches-modal-overlay .matches-status { margin:0.4rem 0; font-size:0.88rem; color:var(--ink-muted); }
+#matches-modal-overlay .matches-list { overflow-y:auto; min-height:0; padding:0 0.2rem 0.2rem 0; }
+#matches-modal-overlay .match-card { padding:0.65rem 0.9rem 0.85rem; margin:0 0 0.6rem; border:1px solid var(--beige-dark);
+  border-radius:12px; background:rgba(255,255,255,0.55); }
+#matches-modal-overlay .match-top { display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-bottom:0.55rem; min-height:1.9rem; }
+#matches-modal-overlay .match-meta { font-size:0.72rem; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; color:var(--ink-muted); }
+#matches-modal-overlay .match-top-right { display:flex; align-items:center; gap:0.5rem; }
+#matches-modal-overlay .match-note { font-size:0.76rem; color:var(--ink-muted); }
+#matches-modal-overlay .match-note.err { color:var(--error); font-weight:600; }
+#matches-modal-overlay button.match-save { padding:0.25rem 0.95rem; font-size:0.8rem; }
+#matches-modal-overlay .match-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto auto minmax(0,1fr); align-items:center; gap:0.5rem; }
+#matches-modal-overlay .match-team { display:flex; flex-direction:column; gap:0.1rem; min-width:0; overflow-wrap:anywhere;
+  font-size:0.92rem; font-weight:600; line-height:1.25; color:var(--ink-muted); }
+#matches-modal-overlay .match-team.left { text-align:right; }
+#matches-modal-overlay .match-team.right { text-align:left; }
+#matches-modal-overlay .match-team.win { color:var(--ink); font-weight:700; }
+#matches-modal-overlay input.match-score { width:3.3rem; min-width:0; height:2.5rem; padding:0; box-sizing:border-box; text-align:center;
+  font:800 1.25rem/1 var(--font-display); color:var(--ink); background:#fff; border:2px solid var(--beige-dark); border-radius:10px;
+  box-shadow:none; -moz-appearance:textfield; }
+#matches-modal-overlay input.match-score::-webkit-outer-spin-button,
+#matches-modal-overlay input.match-score::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+#matches-modal-overlay input.match-score.win { border-color:var(--lime-dark); background:#f3f9e8; }
+#matches-modal-overlay input.match-score:focus { border-color:var(--lime-dark); box-shadow:0 0 0 3px rgba(134,184,43,0.28); }
+#matches-modal-overlay .match-dash { font-weight:700; color:var(--ink-muted); }
+`;
+
+function ensureMatchStyles() {
+  if (document.getElementById("match-modal-style")) return;
+  document.head.appendChild(el("style", { id: "match-modal-style", textContent: MATCH_CSS }));
+}
+
+function openMatchesModal() {
+  ensureMatchStyles();
+  const old = document.getElementById("matches-modal-overlay");
+  if (old) old.remove();
+
+  const list = el("div", { className: "matches-list" });
+  const status = el("p", { className: "matches-status", textContent: "Loading…" });
+  const closeBtn = button("✕", () => close());
+  closeBtn.className = "modal-close";
+
+  const modal = el("div", { className: "score-modal" },
+    el("div", { className: "modal-header" }, el("h2", { textContent: "Recent matches" }), closeBtn),
+    el("p", { className: "match-help", textContent: "Change a score, then press Save. Standings update automatically. A higher score for the other team switches the winner." }),
+    status, list);
+
+  const overlay = el("div", { id: "matches-modal-overlay", className: "modal-overlay" }, modal);
+  function close() { overlay.remove(); document.removeEventListener("keydown", onKey); }
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+
+  function numInput(v, label) {
+    const i = el("input", { type: "number", min: "0", max: "99", value: String(v), className: "match-score" });
+    i.setAttribute("aria-label", label);
+    i.addEventListener("focus", () => i.select());
+    return i;
+  }
+
+  function teamCell(names, side) {
+    return el("div", { className: `match-team ${side}` },
+      ...names.map((n) => el("span", { textContent: n })));
+  }
+
+  function renderGames(games) {
+    list.innerHTML = "";
+    status.textContent = games.length ? "" : "No finished matches yet.";
+    games.forEach((g) => {
+      const i1 = numInput(g.score1, `${g.team1.join(" and ")} score`);
+      const i2 = numInput(g.score2, `${g.team2.join(" and ")} score`);
+      const left = teamCell(g.team1, "left"), right = teamCell(g.team2, "right");
+      const note = el("span", { className: "match-note" });
+
+      const save = button("Save", async () => {
+        save.disabled = true; note.textContent = "Saving…"; note.classList.remove("err");
+        try {
+          const data = await api(`/api/games/${g.id}/score`, "POST", { score1: i1.value, score2: i2.value });
+          renderGames(data.games);
+          if (typeof refresh === "function") refresh();
+        } catch (err) {
+          note.textContent = err.message; note.classList.add("err");
+          save.disabled = false;
+        }
+      }, "match-save");
+      save.disabled = true;                       // nothing to save until a score changes
+
+      function sync() {
+        const a = parseInt(i1.value), b = parseInt(i2.value);
+        const w1 = !isNaN(a) && !isNaN(b) && a > b, w2 = !isNaN(a) && !isNaN(b) && b > a;
+        i1.classList.toggle("win", w1); left.classList.toggle("win", w1);
+        i2.classList.toggle("win", w2); right.classList.toggle("win", w2);
+      }
+      const onEdit = () => {
+        sync();
+        const changed = i1.value !== String(g.score1) || i2.value !== String(g.score2);
+        save.disabled = !changed;
+        if (changed) note.textContent = "";
+      };
+      i1.addEventListener("input", onEdit);
+      i2.addEventListener("input", onEdit);
+      sync();
+
+      const when = g.ts ? new Date(g.ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+      const top = el("div", { className: "match-top" },
+        el("span", { className: "match-meta", textContent: `Court ${g.court}${when ? " · " + when : ""}` }),
+        el("div", { className: "match-top-right" }, note, save));
+      const row = el("div", { className: "match-row" },
+        left, i1, el("span", { className: "match-dash", textContent: "–" }), i2, right);
+      list.append(el("div", { className: "match-card" }, top, row));
+    });
+  }
+
+  api("/api/games").then((d) => renderGames(d.games))
+    .catch((err) => { status.textContent = err.message; status.style.color = "var(--error)"; });
+}
+$("#matches-btn").addEventListener("click", openMatchesModal);
