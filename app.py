@@ -150,6 +150,8 @@ def make_units():
 
 
 def pick_group():
+    from itertools import combinations
+    
     units, checked = make_units()
     if sum(len(u) for u in checked) < PLAYERS_PER_GAME:
         return None, None
@@ -183,7 +185,20 @@ def pick_group():
     # Sort units by priority (FIFO order)
     units_by_priority.sort(key=lambda x: x[0])
     
-    # Try to select groups in FIFO order, skipping only if it matches last game
+    def count_prior_matchups(selected_indices):
+        """Count how many player pairs in the group have played together before."""
+        count = 0
+        selected_players = [checked[idx] for idx in selected_indices]
+        for p1, p2 in combinations(selected_players, 2):
+            key = pair(p1, p2)
+            if together.get(key, 0) > 0:
+                count += 1
+        return count
+    
+    # Try to select groups in FIFO order, prioritizing groups with no prior matchups
+    best_group = None
+    best_matchup_count = float('inf')
+    
     for attempt in range(len(units_by_priority)):
         selected_indices = []
         # Always start from the first unit and build from there
@@ -200,31 +215,38 @@ def pick_group():
                         units_by_priority = units_by_priority[1:] + [first_unit]
                         break  # Try next iteration
                     
-                    # Valid group - remove from just_finished tracking and return
-                    for idx in selected_indices:
-                        just_finished_players.pop(checked[idx]["id"], None)
-                    return selected_indices, checked
+                    # Count prior matchups for this group
+                    matchup_count = count_prior_matchups(selected_indices)
+                    
+                    # Keep track of best group (fewest prior matchups)
+                    if matchup_count < best_matchup_count:
+                        best_matchup_count = matchup_count
+                        best_group = selected_indices
+                    
+                    # If this group has no prior matchups, select it immediately (best case)
+                    if matchup_count == 0:
+                        for idx in selected_indices:
+                            just_finished_players.pop(checked[idx]["id"], None)
+                        return selected_indices, checked
         else:
             # No break occurred, we got a valid group
             if len(selected_indices) == PLAYERS_PER_GAME:
                 selected_ids = set(checked[idx]["id"] for idx in selected_indices)
                 if selected_ids != last_game_group:
-                    for idx in selected_indices:
-                        just_finished_players.pop(checked[idx]["id"], None)
-                    return selected_indices, checked
+                    matchup_count = count_prior_matchups(selected_indices)
+                    if matchup_count < best_matchup_count:
+                        best_matchup_count = matchup_count
+                        best_group = selected_indices
+                    if matchup_count == 0:
+                        for idx in selected_indices:
+                            just_finished_players.pop(checked[idx]["id"], None)
+                        return selected_indices, checked
     
-    # If we exhausted all attempts, just return the first valid FIFO group
-    # (allows same group again if necessary to keep game going)
-    units_by_priority_reset = list(units_by_priority)
-    units_by_priority_reset.sort(key=lambda x: x[0])
-    selected_indices = []
-    for priority, unit_indices in units_by_priority_reset:
-        if len(selected_indices) + len(unit_indices) <= PLAYERS_PER_GAME:
-            selected_indices.extend(unit_indices)
-            if len(selected_indices) == PLAYERS_PER_GAME:
-                for idx in selected_indices:
-                    just_finished_players.pop(checked[idx]["id"], None)
-                return selected_indices, checked
+    # Return best group found (even if it has some prior matchups as fallback)
+    if best_group is not None:
+        for idx in best_group:
+            just_finished_players.pop(checked[idx]["id"], None)
+        return best_group, checked
     
     return None, None
 
