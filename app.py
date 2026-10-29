@@ -346,30 +346,35 @@ def autofill_deck(slots, only=None, exclude=()):
             if lp is not None and lp in pool_ids:
                 forced = lp
 
-        options = []    # (score, candidate, partner_to_place_in_mate_slot or None)
+        options = []    # (repeat_score, join_time, candidate, partner_to_place_in_mate_slot or None)
         for p in pool:
             if forced is not None and p["id"] != forced:
                 continue
+            join_time = queue_join_times.get(p["id"], now)
             lp = locked_with.get(p["id"])
             partner = by_id.get(lp) if lp is not None else None
             partner_avail = partner is not None and lp in pool_ids
             if lp is not None and lp in taken:
                 if slots[mate_slot] != lp:        # locked partner is on the other team
                     continue
-                options.append((_repeat_score(p, [], opps), p, None))
+                options.append((_repeat_score(p, [], opps), join_time, p, None))
             elif partner_avail:
                 if slots[mate_slot] is not None:  # need both slots of a team for a locked pair
                     continue
-                options.append((_repeat_score(p, [], opps) + _repeat_score(partner, [], opps), p, partner))
+                partner_join_time = queue_join_times.get(partner["id"], now)
+                # Use the earlier join time (longest waiting) of the pair
+                pair_join_time = min(join_time, partner_join_time)
+                options.append((_repeat_score(p, [], opps) + _repeat_score(partner, [], opps), pair_join_time, p, partner))
             else:
-                options.append((_repeat_score(p, [mate] if mate else [], opps), p, None))
+                options.append((_repeat_score(p, [mate] if mate else [], opps), join_time, p, None))
 
         if not options:
             return False
-        best = next((o for o in options if o[0] == 0), None) or min(options, key=lambda o: o[0])
-        slots[s] = best[1]["id"]
-        if best[2] is not None:
-            slots[mate_slot] = best[2]["id"]
+        # Sort by: 1st repeat_score (ascending, fewer repeats = better), 2nd join_time (ascending, longer waiting = better)
+        best = min(options, key=lambda o: (o[0], o[1]))
+        slots[s] = best[2]["id"]
+        if best[3] is not None:
+            slots[mate_slot] = best[3]["id"]
     return all(slots[i] is not None for i in targets)
 
 
