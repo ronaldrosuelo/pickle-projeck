@@ -1106,6 +1106,12 @@ def replace_player(n):
         out_player["checked_in"] = True
         in_player.setdefault("checked_in", True)  # Ensure incoming player has it set
         
+        # Remove the in_player from decks since they're now on court
+        for d in decks:
+            for i, pid in enumerate(d):
+                if pid == in_id:
+                    d[i] = None
+        
         return jsonify(state())
 
 
