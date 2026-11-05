@@ -756,3 +756,70 @@ function openMatchesModal() {
     .catch((err) => { status.textContent = err.message; status.style.color = "var(--error)"; });
 }
 $("#matches-btn").addEventListener("click", openMatchesModal);
+
+
+/* ── Offline Detection & PWA Install ──────────────────────────── */
+let isOnline = navigator.onLine;
+
+// Show online/offline status
+function updateOnlineStatus() {
+  isOnline = navigator.onLine;
+  const statusEl = document.querySelector('.offline-status') || (() => {
+    const el = document.createElement('div');
+    el.className = 'offline-status';
+    document.body.insertBefore(el, document.body.firstChild);
+    return el;
+  })();
+  
+  if (!isOnline) {
+    statusEl.textContent = '⚠️ Offline - changes may not sync';
+    statusEl.style.cssText = 'background:#ff6b6b;color:white;padding:8px;text-align:center;font-weight:bold;';
+  } else {
+    statusEl.textContent = '✓ Online';
+    statusEl.style.cssText = 'background:#51cf66;color:white;padding:8px;text-align:center;font-weight:bold;';
+    setTimeout(() => statusEl.remove(), 3000);
+  }
+}
+
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/static/sw.js').then((reg) => {
+    console.log('✓ Service Worker registered');
+  }).catch((err) => {
+    console.error('Service Worker registration failed:', err);
+  });
+}
+
+// PWA Install Button
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  
+  // Show install button on mobile
+  const installBtn = document.createElement('button');
+  installBtn.textContent = '📱 Install App';
+  installBtn.style.cssText = 'position:fixed;bottom:20px;right:20px;padding:10px 16px;background:#4CAF50;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:bold;z-index:9999;';
+  installBtn.addEventListener('click', async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`User response: ${outcome}`);
+      deferredPrompt = null;
+      installBtn.remove();
+    }
+  });
+  
+  // Only show on mobile
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    document.body.appendChild(installBtn);
+  }
+});
+
+window.addEventListener('appinstalled', () => {
+  console.log('✓ PWA installed');
+});
