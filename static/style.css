@@ -626,3 +626,199 @@ body .tv-queue .spot { color: var(--lime-light); }
   border: 2px dashed var(--lime-dark) !important;
   box-shadow: 0 0 12px rgba(134,184,43,0.4);
 }
+
+
+/* ── MOBILE RESPONSIVE (Phone only) ─────────────────────────── */
+@media (max-width: 768px) {
+  /* Body padding for easier viewing on small screens */
+  body { padding: 0.5rem; }
+
+  /* Increase touch target size */
+  button, input { min-height: 44px; }
+
+  /* Form: stack instead of wrap */
+  form { flex-direction: column; }
+  input { min-width: 100%; }
+
+  /* Courts grid: single column on small screens */
+  .courts { grid-template-columns: 1fr; gap: 0.5rem; }
+
+  /* Queue: make more readable */
+  .queue { max-height: 400px; }
+  .queue li {
+    padding: 0.5rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .queue .spot {
+    width: 1.4rem;
+    height: 1.4rem;
+    font-size: 0.75rem;
+  }
+  .queue .who {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .queue .rec { align-self: flex-start; }
+
+  /* Court cards: better readability */
+  .court {
+    min-height: auto;
+    padding: 0.6rem;
+  }
+  .court.busy {
+    min-height: auto;
+  }
+  
+  /* Court players: single column layout */
+  .court ul {
+    grid-template-columns: 1fr;
+    grid-auto-flow: row;
+    gap: 0.3rem;
+  }
+  .team-labels {
+    grid-template-columns: 1fr;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Remove net line on small screens */
+  .court.busy::before { display: none; }
+
+  /* Deck cards: full width */
+  #deck .court { min-height: auto; }
+  .deck-card { min-height: auto; }
+  .deck-teams {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  .deck-team {
+    padding: 0.6rem;
+  }
+
+  /* Modal: adjust for small screens */
+  .score-modal {
+    width: 95vw;
+    padding: 1.2rem 1.4rem 1rem;
+  }
+  .modal-header h2 {
+    font-size: 1.1rem;
+  }
+  .modal-teams {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+  .modal-score-input {
+    width: 4rem;
+    height: 4rem;
+    font-size: 1.8rem;
+  }
+  .modal-actions {
+    flex-direction: column;
+  }
+  button.modal-confirm {
+    width: 100%;
+  }
+
+  /* Buttons: more compact on mobile */
+  .tile-btns { gap: 0.25rem; }
+  .tile-btns button,
+  .queue button,
+  .court-actions button {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+  }
+
+  /* Court actions: stack vertically */
+  .court-actions {
+    flex-direction: column;
+  }
+  .court-actions button {
+    width: 100%;
+  }
+
+  /* Reduce court font sizes */
+  .court { font-size: 0.8rem; }
+  .court.busy .team-labels {
+    font-size: 0.85rem;
+  }
+  .court li > span:first-child {
+    font-size: 0.85rem;
+  }
+  .court .rec { font-size: 0.7rem; }
+
+  /* Message area more visible */
+  #message {
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Offline status banner */
+  .offline-status {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    font-size: 0.9rem;
+    padding: 0.6rem !important;
+  }
+
+  /* Install button styling for phone */
+  [style*="position:fixed"][style*="bottom:20px"] {
+    bottom: 10px !important;
+    right: 10px !important;
+    padding: 8px 12px !important;
+    font-size: 0.85rem !important;
+  }
+
+  /* Scrollbar less intrusive */
+  ::-webkit-scrollbar { width: 4px; }
+}
+
+/* Extra small screens (phones in portrait < 480px) */
+@media (max-width: 480px) {
+  body { padding: 0.25rem; }
+
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1rem; }
+  h3 { font-size: 0.95rem; }
+
+  button, input { min-height: 40px; font-size: 0.9rem; }
+
+  .court { padding: 0.5rem; font-size: 0.75rem; }
+  .court li > span:first-child { font-size: 0.8rem; }
+  
+  .queue li {
+    padding: 0.4rem;
+    gap: 0.3rem;
+  }
+  .queue .who > span:first-child { font-size: 0.85rem; }
+
+  .score-modal { padding: 1rem 1.2rem 0.8rem; }
+  .modal-header h2 { font-size: 1rem; }
+  .modal-score-input {
+    width: 3.5rem;
+    height: 3.5rem;
+    font-size: 1.5rem;
+  }
+
+  .tile-btns button,
+  .queue button,
+  .court-actions button {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+  }
+
+  .bento-topbar { padding: 0.7rem 0.9rem; }
+  input { padding: 0.4rem 0.7rem; }
+}
+
+/* Landscape mode adjustments */
+@media (max-width: 768px) and (orientation: landscape) {
+  body { padding: 0.3rem; }
+  .courts { grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+  .court { min-height: auto; padding: 0.5rem; }
+  .queue { max-height: 300px; }
+  .tile-btns button,
+  .queue button,
+  .court-actions button { font-size: 0.7rem; padding: 0.2rem 0.4rem; }
+}
