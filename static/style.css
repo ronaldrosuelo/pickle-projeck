@@ -374,6 +374,43 @@ button.checkin-on:hover:not(:disabled) {
   display: grid; gap: 0.4rem; overflow-y: auto;
   max-height: 600px;
 }
+
+/* Queue header section */
+#queue-search {
+  margin-bottom: 0.5rem;
+}
+
+#queue-stats {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.stat {
+  font: 600 0.8rem var(--font);
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.stat-in {
+  background: rgba(134, 184, 43, 0.15);
+  color: var(--lime-dark);
+  border: 1px solid rgba(134, 184, 43, 0.3);
+}
+
+.stat-out {
+  background: rgba(204, 34, 0, 0.15);
+  color: var(--error);
+  border: 1px solid rgba(204, 34, 0, 0.3);
+}
+
+.stat-found {
+  background: rgba(100, 100, 100, 0.15);
+  color: var(--ink-muted);
+  border: 1px solid rgba(100, 100, 100, 0.3);
+}
 .queue li {
   display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;
   padding: 0.42rem 0.6rem;
@@ -644,23 +681,83 @@ body .tv-queue .spot { color: var(--lime-light); }
   .courts { grid-template-columns: 1fr; gap: 0.5rem; }
 
   /* Queue: make more readable */
-  .queue { max-height: 400px; }
+  .queue { 
+    max-height: 350px;
+    gap: 0.35rem;
+  }
+  
   .queue li {
-    padding: 0.5rem;
-    flex-direction: column;
-    align-items: flex-start;
+    padding: 0.45rem;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.4rem;
+    align-items: start;
   }
+  
   .queue .spot {
-    width: 1.4rem;
-    height: 1.4rem;
+    width: 1.6rem;
+    height: 1.6rem;
     font-size: 0.75rem;
+    grid-row: 1 / 3;
   }
+  
   .queue .who {
+    grid-column: 2;
+    grid-row: 1;
     width: 100%;
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.3rem;
   }
-  .queue .rec { align-self: flex-start; }
+  
+  .queue .who > span:first-child {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  
+  .queue .rec {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  
+  /* Buttons for queue items */
+  .queue li > button {
+    grid-column: 2;
+    grid-row: 2;
+    width: 100%;
+    text-align: center;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+  }
+
+  /* Wait badge positioning */
+  .wait-badge {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    justify-self: end;
+    margin: 0;
+  }
+
+  /* Queue header */
+  #queue-search {
+    margin-bottom: 0.5rem;
+  }
+
+  #queue-stats {
+    display: flex;
+    gap: 0.35rem;
+    margin-bottom: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.4rem;
+  }
 
   /* Court cards: better readability */
   .court {
@@ -760,14 +857,6 @@ body .tv-queue .spot { color: var(--lime-light); }
     z-index: 100;
     font-size: 0.9rem;
     padding: 0.6rem !important;
-  }
-
-  /* Install button styling for phone */
-  [style*="position:fixed"][style*="bottom:20px"] {
-    bottom: 10px !important;
-    right: 10px !important;
-    padding: 8px 12px !important;
-    font-size: 0.85rem !important;
   }
 
   /* Scrollbar less intrusive */

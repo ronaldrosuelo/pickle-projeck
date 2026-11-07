@@ -793,33 +793,45 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// PWA Install Button
+// PWA Install Button - ONLY ON MOBILE
 let deferredPrompt = null;
 
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
   
-  // Show install button on mobile
-  const installBtn = document.createElement('button');
-  installBtn.textContent = '📱 Install App';
-  installBtn.style.cssText = 'position:fixed;bottom:20px;right:20px;padding:10px 16px;background:#4CAF50;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:bold;z-index:9999;';
-  installBtn.addEventListener('click', async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      console.log(`User response: ${outcome}`);
-      deferredPrompt = null;
-      installBtn.remove();
-    }
-  });
+  // Check if device is mobile (small screen)
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
   
-  // Only show on mobile
-  if (window.matchMedia('(max-width: 768px)').matches) {
+  if (isMobile) {
+    const installBtn = document.createElement('button');
+    installBtn.textContent = '📱 Install App';
+    installBtn.id = 'pwa-install-btn';
+    installBtn.style.cssText = 'position:fixed;bottom:80px;right:15px;padding:10px 14px;background:#86b82b;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-size:0.9rem;';
+    
+    installBtn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`User response: ${outcome}`);
+        deferredPrompt = null;
+        installBtn.remove();
+      }
+    });
+    
+    installBtn.addEventListener('mouseenter', () => {
+      installBtn.style.background = '#96c933';
+    });
+    installBtn.addEventListener('mouseleave', () => {
+      installBtn.style.background = '#86b82b';
+    });
+    
     document.body.appendChild(installBtn);
   }
 });
 
 window.addEventListener('appinstalled', () => {
   console.log('✓ PWA installed');
+  const btn = document.getElementById('pwa-install-btn');
+  if (btn) btn.remove();
 });
