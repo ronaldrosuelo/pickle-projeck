@@ -643,12 +643,11 @@
       }
 
       ss.cancel();
-      const second = mkU(text, () => { _stopKeepalive(); if (onDone) onDone(); });
-      const first  = mkU(text, () => { setTimeout(() => ss.speak(second), 120); });
+      const utter = mkU(text, () => { _stopKeepalive(); if (onDone) onDone(); });
       setTimeout(() => {
         if (_ttsTok !== tok) return;
         _startKeepalive();
-        ss.speak(first);
+        ss.speak(utter);
       }, 60);
     }
 
@@ -762,8 +761,8 @@
                   `Team 2: ${players[2].name}, ${players[3].name}.`;
 
       function hide() { if (myId === popupId) overlay.classList.remove('show'); }
-      speak(txt, hide);
-      popupTimer = setTimeout(hide, 30000);
+      /* TV page is silent: the main window (index) does the voice announcement. */
+      popupTimer = setTimeout(hide, 14000);
     }
 
     /* ══════════════════════════════════════════════════════════════════════

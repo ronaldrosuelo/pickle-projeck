@@ -378,6 +378,122 @@ function checkinButton(p) {
   return btn;
 }
 
+function openPlayerModal(p) {
+  const old = document.getElementById("player-modal-overlay");
+  if (old) old.remove();
+
+  const close = button("✕", () => overlay.remove());
+  close.className = "modal-close";
+
+  // Player avatar
+  const avatar = el("div", { className: "player-modal-avatar" });
+  if (p.avatar) {
+    avatar.append(el("img", { src: p.avatar, alt: p.name, className: "player-avatar-img" }));
+  } else {
+    avatar.append(el("div", { className: "player-avatar-placeholder", textContent: p.name.charAt(0).toUpperCase() }));
+  }
+
+  // Player info
+  const info = el("div", { className: "player-modal-info" },
+    el("h2", { textContent: p.name }),
+    el("div", { className: "player-modal-stats" },
+      el("span", { textContent: `${p.w}W ${p.l}L` }),
+      ...(p.partner_id ? [el("span", { className: "player-partner", textContent: `Locked with ${names.get(p.partner_id) || "partner"}` })] : [])
+    )
+  );
+
+  // Partner dropdown or button
+  const queue = lastState ? lastState.queue : [];
+  const checkedInPlayers = queue.filter(q => q.checked_in && q.id !== p.id);
+  
+  let partnerBtn = null;
+  if (p.partner_id) {
+    // Already has a partner - show Unlock button
+    partnerBtn = button("Unlock Partner", () => { 
+      overlay.remove(); 
+      run(`/api/unpartner/${p.id}`); 
+    }, "", `Unlock ${p.name} from partner`);
+  } else if (checkedInPlayers.length > 0) {
+    // Custom styled partner picker
+    const partnerDropdown = el("div", { className: "partner-selector" });
+    const label = el("label", { className: "partner-label", textContent: "Choose a partner:" });
+
+    // Build set of already partnered player IDs
+    const partneredIds = new Set();
+    queue.forEach(q => { if (q.partner_id) partneredIds.add(q.partner_id); });
+
+    // Custom dropdown container
+    const dropWrap = el("div", { className: "custom-select-wrap" });
+    const dropBtn  = el("button", { className: "custom-select-btn", type: "button" });
+    dropBtn.innerHTML = `<span class="custom-select-val">Select a player…</span><span class="custom-select-arrow">▾</span>`;
+    const dropList = el("ul", { className: "custom-select-list" });
+
+    let selectedId = null;
+
+    checkedInPlayers.forEach(q => {
+      const isPartnered = partneredIds.has(q.id);
+      const li = el("li", {
+        className: "custom-select-item" + (isPartnered ? " disabled" : ""),
+        textContent: q.name + (isPartnered ? " (partnered)" : "")
+      });
+      if (!isPartnered) {
+        li.addEventListener("click", () => {
+          selectedId = q.id;
+          dropBtn.querySelector(".custom-select-val").textContent = q.name;
+          dropList.classList.remove("open");
+          dropBtn.classList.remove("active");
+          // Auto-confirm
+          overlay.remove();
+          run("/api/partner", { a: p.id, b: q.id });
+        });
+      }
+      dropList.appendChild(li);
+    });
+
+    // Toggle open/close
+    dropBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const open = dropList.classList.toggle("open");
+      dropBtn.classList.toggle("active", open);
+    });
+
+    // Close on outside click
+    document.addEventListener("click", function closeDropdown() {
+      dropList.classList.remove("open");
+      dropBtn.classList.remove("active");
+      document.removeEventListener("click", closeDropdown);
+    });
+
+    dropWrap.append(dropBtn, dropList);
+    partnerDropdown.append(label, dropWrap);
+    partnerBtn = partnerDropdown;
+  } else {
+    // No checked-in players to partner with
+    partnerBtn = button("Partner", () => {}, "", "No other checked-in players available");
+    partnerBtn.disabled = true;
+  }
+
+  // Buttons moved from outside
+  const actions = el("div", { className: "player-modal-actions" },
+    partnerBtn,
+    button("Break", () => { overlay.remove(); run(`/api/break/${p.id}`); }, "quiet", `${p.name} takes a break`),
+    button("Leave", () => { overlay.remove(); run(`/api/leave/${p.id}`); }, "quiet", `Remove ${p.name} from the queue`)
+  );
+
+  const modal = el("div", { className: "player-modal" },
+    el("div", { className: "modal-header" }, close),
+    avatar,
+    info,
+    actions
+  );
+
+  const overlay = el("div", { id: "player-modal-overlay", className: "modal-overlay" }, modal);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  const onKey = (e) => { if (e.key === "Escape") { overlay.remove(); document.removeEventListener("keydown", onKey); } };
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+}
+
 function render(data) {
   lastState = data;
   if (courtDragging) return;   // keep the DOM stable while a name is being dragged
@@ -414,11 +530,16 @@ function render(data) {
 
   $("#queue-count").textContent = queue.length ? `(${queue.length})` : "";
 
-  // Sort queue by wait time (longest waiting first)
+  // Sort queue: checked-in first, then by wait time (longest waiting first)
   const sortedQueue = [...queue].sort((a, b) => {
+    // Checked-in players always come before non-checked-in
+    const aIn = a.checked_in ? 0 : 1;
+    const bIn = b.checked_in ? 0 : 1;
+    if (aIn !== bIn) return aIn - bIn;
+
     const joinTsA = queue_join_times ? queue_join_times[String(a.id)] : null;
     const joinTsB = queue_join_times ? queue_join_times[String(b.id)] : null;
-    
+
     // If both have join times, sort by oldest first (ascending)
     if (joinTsA !== null && joinTsB !== null) {
       return joinTsA - joinTsB;
@@ -461,14 +582,40 @@ function render(data) {
             return span;
           })() : null;
 
+          // Wrap player info in clickable div
+          const playerInfo = el("div", { 
+            className: "player-info-clickable",
+            style: "cursor: pointer; flex: 1; min-width: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 0.4rem;"
+          });
+          playerInfo.appendChild(el("span", { 
+            className: "player-name", 
+            textContent: p.name, 
+            style: "flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; color: var(--ink);"
+          }));
+          if (p.partner_id) {
+            playerInfo.appendChild(el("small", { 
+              className: "lock", 
+              textContent: `Locked with ${names.get(p.partner_id) || "partner"}`,
+              style: "display: block; font-size: 0.73rem; font-weight: 600; color: var(--lime-dark);"
+            }));
+          }
+          playerInfo.appendChild(el("span", { 
+            className: "rec", 
+            textContent: `${p.w}W ${p.l}L`,
+            style: "color: var(--ink-muted); font-size: 0.78rem; white-space: nowrap;"
+          }));
+
+          // Click handler for player info
+          playerInfo.addEventListener("click", () => {
+            openPlayerModal(p);
+          });
+
           const li = el("li", { draggable: true },
             el("span", { className: "spot", textContent: queuePos.get(p.id) }),
-            person(p),
+            playerInfo,
             ...(waitEl ? [waitEl] : []),
-            checkinButton(p),
-            partnerButton(p),
-            button("Break", () => run(`/api/break/${p.id}`), "quiet", `${p.name} takes a break`),
-            button("Leave", () => run(`/api/leave/${p.id}`), "quiet", `Remove ${p.name} from the queue`));
+            checkinButton(p)
+          );
           
           // Add drag events for moving to court
           li.addEventListener("dragstart", (e) => {
@@ -595,11 +742,31 @@ function renderDecks(data) {
     sel.setAttribute("aria-label", `Choose player for deck ${deckIdx + 1}, slot ${slotIdx + 1}`);
     sel.append(el("option", { value: "", textContent: "Choose…" }));
     pool.forEach((q) => sel.append(el("option", { value: String(q.id), textContent: `${q.name} (${q.w}W ${q.l}L)` })));
+    
+    // Fire immediately on selection
     sel.addEventListener("change", () => {
-      if (sel.value) run(`/api/decks/${deckIdx}/slot`, { slot: slotIdx, player_id: parseInt(sel.value) });
+      if (sel.value) {
+        const playerId = parseInt(sel.value);
+        msg.textContent = ""; // Clear message
+        run(`/api/decks/${deckIdx}/slot`, { slot: slotIdx, player_id: playerId });
+      }
     });
-    const auto = button("Auto", () => run(`/api/decks/${deckIdx}/fill`, { slot: slotIdx }), "quiet deck-auto",
-      "Fill this slot with the best available player");
+    
+    // Also fire on blur (when user clicks outside)
+    sel.addEventListener("blur", () => {
+      if (sel.value) {
+        const playerId = parseInt(sel.value);
+        if (!msg.textContent) { // Don't override error messages
+          run(`/api/decks/${deckIdx}/slot`, { slot: slotIdx, player_id: playerId });
+        }
+      }
+    });
+    
+    const auto = button("Auto", () => {
+      msg.textContent = "Finding best player...";
+      run(`/api/decks/${deckIdx}/fill`, { slot: slotIdx });
+    }, "quiet deck-auto", "Fill this slot with the best available player");
+    
     cell.append(sel, auto);
     return cell;
   }
@@ -756,6 +923,7 @@ function openMatchesModal() {
     .catch((err) => { status.textContent = err.message; status.style.color = "var(--error)"; });
 }
 $("#matches-btn").addEventListener("click", openMatchesModal);
+
 
 
 /* ── Offline Detection & PWA Install ──────────────────────────── */

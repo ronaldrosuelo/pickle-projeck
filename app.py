@@ -416,6 +416,16 @@ def error(message, code=409):
     return jsonify(error=message), code
 
 
+@app.get("/")
+def index():
+    return render_template("index.html")
+
+
+@app.get("/tournament")
+def tournament():
+    return render_template("tournament.html")
+
+
 # GLASSMORPHISM MAIN INDEX TEMPLATE
 INDEX_TEMPLATE = """
 <!DOCTYPE html>
@@ -756,11 +766,6 @@ INDEX_TEMPLATE = """
 </body>
 </html>
 """
-
-
-@app.get("/")
-def index():
-    return render_template("index.html")
 
 
 @app.route("/api/state", methods=["GET"])
@@ -1183,29 +1188,33 @@ def reclub_import():
             try:
                 nuxt = json.loads(nuxt_match.group(1))
 
-                # Find the usersMap dict: keys are numeric strings (user IDs),
+                # Find the usersMap dict: keys are UUID strings or numeric strings,
                 # values are integer indices pointing to user-objects
                 for item in nuxt:
                     if (isinstance(item, dict)
                             and len(item) >= 1
-                            and all(isinstance(k, str) and k.isdigit() for k in item)):
+                            and all(isinstance(k, str) and (
+                                k.isdigit() or
+                                bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', k))
+                            ) for k in list(item.keys())[:5])):
                         users_map_obj = item
                         break
 
                 if users_map_obj:
                     for user_id_str, user_obj_idx in users_map_obj.items():
-                        user_obj = nuxt[user_obj_idx] if isinstance(user_obj_idx, int) else None
+                        user_obj = nuxt[user_obj_idx] if isinstance(user_obj_idx, int) and user_obj_idx < len(nuxt) else None
                         if not isinstance(user_obj, dict):
                             continue
                         name_idx = user_obj.get("name")
-                        img_idx  = user_obj.get("imageUrl")
-                        if name_idx is None or img_idx is None:
+                        img_idx  = user_obj.get("imageUrl") or user_obj.get("avatarUrl") or user_obj.get("avatar")
+                        if name_idx is None:
                             continue
-                        name_val = resolve(name_idx)
-                        img_val  = resolve(img_idx)
-                        if (isinstance(name_val, str) and isinstance(img_val, str)
-                                and "assets.reclub.co" in img_val):
-                            avatar_map[name_val.lower()] = img_val
+                        # name can be a direct string or an int index
+                        name_val = resolve(name_idx) if isinstance(name_idx, int) else name_idx
+                        img_val  = (resolve(img_idx) if isinstance(img_idx, int) else img_idx) if img_idx is not None else None
+                        if isinstance(name_val, str) and name_val.strip():
+                            if (isinstance(img_val, str) and "assets.reclub.co" in img_val):
+                                avatar_map[name_val.strip().lower()] = img_val
 
             except Exception:
                 pass  # best-effort

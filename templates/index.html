@@ -183,7 +183,43 @@
 </head>
 <body>
 
-  <!-- ── Top bar tile ── -->
+  <!-- ── Nav bar ── -->
+  <div style="
+    display: flex; gap: 0; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--beige-dark);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    align-self: flex-start;
+    margin-bottom: 0.25rem;
+  ">
+    <button id="nav-queue" onclick="switchTab('queue')" style="
+      padding: 0.5rem 1.4rem; border: none; cursor: pointer;
+      font: 700 0.85rem var(--font-display); letter-spacing: 0.05em;
+      background: var(--maroon-dark); color: #fff;
+      transition: background 0.2s;
+    ">🏓 Queuing</button>
+    <button id="nav-tournament" onclick="switchTab('tournament')" style="
+      padding: 0.5rem 1.4rem; border: none; cursor: pointer;
+      font: 700 0.85rem var(--font-display); letter-spacing: 0.05em;
+      background: var(--beige); color: var(--ink);
+      border-left: 1px solid var(--beige-dark);
+      transition: background 0.2s;
+    ">🏆 Tournament</button>
+  </div>
+
+  <script>
+    function switchTab(tab) {
+      const isQueue = tab === 'queue';
+      document.getElementById('page-queue').style.display = isQueue ? '' : 'none';
+      document.getElementById('page-tournament').style.display = isQueue ? 'none' : '';
+      document.getElementById('nav-queue').style.background = isQueue ? 'var(--maroon-dark)' : 'var(--beige)';
+      document.getElementById('nav-queue').style.color = isQueue ? '#fff' : 'var(--ink)';
+      document.getElementById('nav-tournament').style.background = isQueue ? 'var(--beige)' : 'var(--maroon-dark)';
+      document.getElementById('nav-tournament').style.color = isQueue ? 'var(--ink)' : '#fff';
+    }
+  </script>
+
+  <!-- ── Queue page ── -->
+  <div id="page-queue">
   <div class="bento-topbar tile">
     <div class="topbar-row1">
       <div class="brand">
@@ -428,8 +464,44 @@
       const voice = voices[idx] || null;
       const tok = ++_ttsTok;
 
+      // ── Phonetic fixes for Filipino names & sounds ──
+      function toPhonetic(t) {
+        const map = [
+          // Common Filipino name endings / syllables
+          [/bby\b/gi,   'bee'],        // Mabby → Mabbee
+          [/eby\b/gi,   'ebee'],       // Geby → Gebee
+          [/aby\b/gi,   'abee'],       // Baby → Babee
+          [/iby\b/gi,   'ibee'],       // Niby → Nibee
+          [/\bng\b/gi,  'nang'],       // "ng" Tagalog connector
+          [/neth\b/gi,  'net'],        // Janeth → Janet
+          [/weng\b/gi,  'weng'],       // already ok
+          [/\bjun\b/gi, 'john'],       // Jun → John
+          [/\bjom\b/gi, 'johm'],       // Jom
+          [/\bgen\b/gi, 'hen'],        // Gen → Hen (Filipino G sound)
+          [/\bgel\b/gi, 'hel'],        // Gel → Hel
+          [/\bgelo\b/gi,'helo'],       // Gelo → Hello
+          [/ph/gi,      'f'],          // Philips → Filips
+          [/\bmarife\b/gi, 'marifeh'], // Marife
+          [/\bmariz\b/gi,  'mareez'],  // Mariz
+          [/\broxanne\b/gi,'roxan'],
+          [/\bjhun\b/gi,   'john'],
+          [/\brhea\b/gi,   'ree-ah'],
+          [/\bdannie\b/gi, 'danny'],
+          [/\bnoemi\b/gi,  'no-emi'],
+          [/\blenie\b/gi,  'lenny'],
+          [/\blerma\b/gi,  'lerma'],
+          [/elyn\b/gi,   'elin'],      // Jacelyn, Evelyn
+          [/\bjasper\b/gi, 'jasper'],  // already ok
+          [/oy\b/gi,    'oi'],         // common Filipino suffix
+        ];
+
+        let out = t;
+        map.forEach(([re, rep]) => { out = out.replace(re, rep); });
+        return out;
+      }
+
       function makeU(t, cb) {
-        const u = new SpeechSynthesisUtterance(t);
+        const u = new SpeechSynthesisUtterance(toPhonetic(t));
         u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
         if (voice) u.voice = voice;
         if (cb) u.onend = () => { if (_ttsTok === tok) cb(); };
@@ -438,16 +510,26 @@
 
       ss.cancel();
 
-      const second = makeU(text, () => _stopKeepalive());
-      const first  = makeU(text, () => setTimeout(() => ss.speak(second), 120));
+      const utter = makeU(text, () => _stopKeepalive());
 
       // Short delay after cancel() so Chrome settles
       setTimeout(() => {
         if (_ttsTok !== tok) return; // superseded
         _startKeepalive();
-        ss.speak(first);
+        ss.speak(utter);
       }, 60);
     };
   </script>
+  </div> <!-- end #page-queue -->
+
+  <!-- ── Tournament page (iframe) ── -->
+  <div id="page-tournament" style="display:none; flex:1; min-height:0;">
+    <iframe src="/tournament" style="
+      width: 100%; height: calc(100vh - 120px);
+      border: none; border-radius: 12px;
+      background: transparent;
+    " id="tournament-frame"></iframe>
+  </div>
+
 </body>
 </html>
