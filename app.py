@@ -1969,23 +1969,6 @@ def checkin_page():
     return render_template("checkin.html")
 
 
-@app.get("/api/qr-code")
-def qr_code():
-    """Generate and return a QR code PNG pointing to the /checkin page."""
-    import qrcode
-    base = request.host_url.rstrip("/")
-    url = f"{base}/checkin"
-    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
-    qr.add_data(url)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return Response(buf.read(), mimetype="image/png",
-                    headers={"Cache-Control": "no-cache"})
-
-
 if __name__ == "__main__":
     import os as _os
     print("=== Pickle Flow running from:", _os.path.abspath(__file__))
