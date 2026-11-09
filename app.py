@@ -8,7 +8,7 @@ import requests
 from bs4 import BeautifulSoup
 from itertools import combinations, count
 from threading import Lock
-from flask import Flask, jsonify, render_template, render_template_string, request, Response, send_file
+from flask import Flask, jsonify, render_template, render_template_string, request, Response
 from queue import Queue, Empty
 
 app = Flask(__name__)
@@ -1973,9 +1973,7 @@ def checkin_page():
 def qr_code():
     """Generate and return a QR code PNG pointing to the /checkin page."""
     import qrcode
-    from flask import request as freq
-    # Build the URL: use the request host so it works both locally and on Railway/Render
-    base = freq.host_url.rstrip("/")
+    base = request.host_url.rstrip("/")
     url = f"{base}/checkin"
     qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
     qr.add_data(url)
@@ -1984,7 +1982,8 @@ def qr_code():
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
-    return send_file(buf, mimetype="image/png")
+    return Response(buf.read(), mimetype="image/png",
+                    headers={"Cache-Control": "no-cache"})
 
 
 if __name__ == "__main__":
