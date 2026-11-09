@@ -1116,7 +1116,9 @@
 
     // ── QR Code (client-side, no server dependency) ──
     function generateQR() {
+      // Use the same origin as the TV page so it works on local network
       const url = window.location.origin + '/checkin';
+      
       const container = document.getElementById('qr-container');
       if (!container) return;
 
@@ -1124,26 +1126,36 @@
       const qr = qrcode(0, 'M');
       qr.addData(url);
       qr.make();
-      const size = 100;
-      const cellSize = Math.floor(size / qr.getModuleCount());
-      container.innerHTML = qr.createSvgTag(cellSize, 0);
+      
+      // SVG output
+      const svgTag = qr.createSvgTag(120, 6); // 120px size, 6px border
+      container.innerHTML = svgTag;
+      
+      // Ensure it fits in the sidebar
       const svg = container.querySelector('svg');
       if (svg) {
-        svg.style.width = size + 'px';
-        svg.style.height = size + 'px';
+        svg.style.width = '100%';
+        svg.style.maxWidth = '120px';
+        svg.style.height = 'auto';
         svg.style.display = 'block';
       }
     }
 
     // Load qrcode-generator from CDN then render
     (function() {
+      if (window.qrcode) {
+        generateQR(); // Already loaded
+        return;
+      }
       const s = document.createElement('script');
       s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
       s.onload = generateQR;
       s.onerror = function() {
         // Fallback: show the URL as text if CDN fails
         const c = document.getElementById('qr-container');
-        if (c) c.innerHTML = '<div style="font-size:9px;word-break:break-all;max-width:100px;color:#333">' + window.location.origin + '/checkin</div>';
+        if (c) {
+          c.innerHTML = '<div style="font-size:9px;word-break:break-all;max-width:100px;color:#333">' + (window.location.origin + '/checkin') + '</div>';
+        }
       };
       document.head.appendChild(s);
     })();

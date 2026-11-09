@@ -227,7 +227,8 @@
 </div>
 
 <script>
-  const API = '';
+  // Use same origin as current page for API calls
+  const API = window.location.origin;
 
   async function loadPlayers() {
     const spinner  = document.getElementById('spinner');
