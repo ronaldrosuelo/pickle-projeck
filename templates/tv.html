@@ -542,15 +542,8 @@
       <div style="display: flex; flex-direction: column; flex-shrink: 0; min-height: 0; overflow: hidden;">
         <div class="tv-queue-title">Up Next</div>
         <ol class="tv-queue" id="queue-list"></ol>
-        <div style="padding:0.5rem 0.65rem; flex-shrink:0;">
+        <div style="padding:0.4rem 0.65rem; flex-shrink:0;">
           <button id="podium-btn" onclick="showPodium()">🏆 Top 3</button>
-        </div>
-        <!-- QR Check-in -->
-        <div style="padding:0.4rem 0.65rem 0.6rem; flex-shrink:0; text-align:center; border-top:1px solid var(--beige-dark);">
-          <div style="font:700 0.6rem/1 var(--font-display);letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:0.35rem;">
-            📱 Scan to Check In
-          </div>
-          <div id="qr-container" style="display:inline-block;background:#fff;padding:6px;border-radius:8px;border:2px solid var(--beige-dark);"></div>
         </div>
       </div>
     </aside>
@@ -1113,52 +1106,6 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
     }
-
-    // ── QR Code (client-side, no server dependency) ──
-    function generateQR() {
-      // Use the same origin as the TV page so it works on local network
-      const url = window.location.origin + '/checkin';
-      
-      const container = document.getElementById('qr-container');
-      if (!container) return;
-
-      // Use qrcode-generator library (tiny, no dependencies)
-      const qr = qrcode(0, 'M');
-      qr.addData(url);
-      qr.make();
-      
-      // SVG output
-      const svgTag = qr.createSvgTag(120, 6); // 120px size, 6px border
-      container.innerHTML = svgTag;
-      
-      // Ensure it fits in the sidebar
-      const svg = container.querySelector('svg');
-      if (svg) {
-        svg.style.width = '100%';
-        svg.style.maxWidth = '120px';
-        svg.style.height = 'auto';
-        svg.style.display = 'block';
-      }
-    }
-
-    // Load qrcode-generator from CDN then render
-    (function() {
-      if (window.qrcode) {
-        generateQR(); // Already loaded
-        return;
-      }
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
-      s.onload = generateQR;
-      s.onerror = function() {
-        // Fallback: show the URL as text if CDN fails
-        const c = document.getElementById('qr-container');
-        if (c) {
-          c.innerHTML = '<div style="font-size:9px;word-break:break-all;max-width:100px;color:#333">' + (window.location.origin + '/checkin') + '</div>';
-        }
-      };
-      document.head.appendChild(s);
-    })();
   </script>
 </body>
 </html>>
