@@ -545,6 +545,14 @@
         <div style="padding:0.5rem 0.65rem; flex-shrink:0;">
           <button id="podium-btn" onclick="showPodium()">🏆 Top 3</button>
         </div>
+        <!-- QR Check-in -->
+        <div style="padding:0.4rem 0.65rem 0.6rem; flex-shrink:0; text-align:center; border-top:1px solid var(--beige-dark);">
+          <div style="font:700 0.6rem/1 var(--font-display);letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:0.35rem;">
+            📱 Scan to Check In
+          </div>
+          <img id="qr-img" src="/api/qr-code" alt="Check-in QR Code"
+               style="width:100%;max-width:110px;border-radius:8px;border:2px solid var(--beige-dark);background:#fff;display:block;margin:0 auto;">
+        </div>
       </div>
     </aside>
   </div>

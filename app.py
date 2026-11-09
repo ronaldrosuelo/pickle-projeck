@@ -2,11 +2,13 @@ import json
 import random
 import time
 import re
+import io
+import base64
 import requests
 from bs4 import BeautifulSoup
 from itertools import combinations, count
 from threading import Lock
-from flask import Flask, jsonify, render_template, render_template_string, request, Response
+from flask import Flask, jsonify, render_template, render_template_string, request, Response, send_file
 from queue import Queue, Empty
 
 app = Flask(__name__)
@@ -1959,6 +1961,30 @@ def manifest():
             }
         ]
     })
+
+
+@app.get("/checkin")
+def checkin_page():
+    """Mobile-friendly self check-in page for players after scanning the QR code."""
+    return render_template("checkin.html")
+
+
+@app.get("/api/qr-code")
+def qr_code():
+    """Generate and return a QR code PNG pointing to the /checkin page."""
+    import qrcode
+    from flask import request as freq
+    # Build the URL: use the request host so it works both locally and on Railway/Render
+    base = freq.host_url.rstrip("/")
+    url = f"{base}/checkin"
+    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return send_file(buf, mimetype="image/png")
 
 
 if __name__ == "__main__":

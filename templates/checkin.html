@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Check In — Pickle Flow</title>
+  <style>
+    :root {
+      --green:      #2f6b1f;
+      --green-mid:  #4a8c32;
+      --green-light:#7ac12b;
+      --beige:      #f5f0eb;
+      --beige-dark: #d9cfc4;
+      --ink:        #1a1a1a;
+      --ink-muted:  #6b6b6b;
+      --red:        #c0392b;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      min-height: 100vh;
+      background: linear-gradient(160deg, #e8f5e0 0%, var(--beige) 60%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(180deg, var(--green-mid), var(--green));
+      padding: 1.2rem 1.2rem 1rem;
+      text-align: center;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    }
+    .header .ball {
+      width: 2.4rem; height: 2.4rem; border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, rgba(100,20,0,0.5) 0 0.1rem, transparent 0.12rem),
+                  radial-gradient(circle at 65% 30%, rgba(100,20,0,0.5) 0 0.1rem, transparent 0.12rem),
+                  #e8dfc8;
+      display: inline-block; vertical-align: middle;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      margin-right: 0.5rem;
+    }
+    .header h1 {
+      display: inline; vertical-align: middle;
+      font-size: 1.4rem; font-weight: 800;
+      color: #fff; letter-spacing: 0.02em;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+    .header p {
+      margin-top: 0.35rem;
+      font-size: 0.85rem; color: rgba(255,255,255,0.82);
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Main content ── */
+    .container { padding: 1.2rem; max-width: 480px; margin: 0 auto; }
+
+    /* ── Success state ── */
+    .success-card {
+      display: none;
+      background: #fff;
+      border: 2px solid var(--green-light);
+      border-radius: 18px;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(47,107,31,0.15);
+      margin-bottom: 1.5rem;
+    }
+    .success-card.show { display: block; }
+    .success-icon { font-size: 3.5rem; margin-bottom: 0.75rem; }
+    .success-name { font-size: 1.6rem; font-weight: 800; color: var(--green); margin-bottom: 0.4rem; }
+    .success-msg  { font-size: 0.95rem; color: var(--ink-muted); }
+    .success-sub  { margin-top: 1rem; font-size: 0.82rem; color: var(--ink-muted); }
+
+    /* ── Error banner ── */
+    .error-banner {
+      display: none;
+      background: #fdecea; border: 1px solid #f5c6c2;
+      border-radius: 10px; padding: 0.75rem 1rem;
+      color: var(--red); font-size: 0.9rem; font-weight: 600;
+      margin-bottom: 1rem;
+    }
+    .error-banner.show { display: block; }
+
+    /* ── Section label ── */
+    .section-label {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--ink-muted);
+      margin-bottom: 0.6rem; margin-top: 1.2rem;
+    }
+
+    /* ── Player list ── */
+    .player-list {
+      display: flex; flex-direction: column; gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .player-btn {
+      width: 100%;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.85rem 1rem;
+      background: #fff;
+      border: 2px solid var(--beige-dark);
+      border-radius: 14px;
+      font-size: 1rem; font-weight: 600; color: var(--ink);
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+      transition: border-color 0.15s, background 0.15s, transform 0.1s;
+      text-align: left;
+    }
+    .player-btn:active { transform: scale(0.98); }
+    .player-btn:hover  { border-color: var(--green-light); background: #f5fbee; }
+    .player-btn .badge {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em;
+      padding: 0.2rem 0.55rem; border-radius: 999px;
+      background: #e8f5e0; color: var(--green); border: 1px solid #a9d495;
+    }
+    .player-btn .wait {
+      font-size: 0.78rem; color: var(--ink-muted); font-weight: 400;
+    }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center; padding: 2rem 1rem;
+      color: var(--ink-muted); font-size: 0.95rem;
+      background: #fff; border-radius: 14px;
+      border: 1px dashed var(--beige-dark);
+    }
+    .empty .emoji { font-size: 2.5rem; margin-bottom: 0.5rem; }
+
+    /* ── Join section ── */
+    .join-box {
+      background: #fff;
+      border: 1px solid var(--beige-dark);
+      border-radius: 14px;
+      padding: 1rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+    .join-box input {
+      width: 100%; padding: 0.75rem 1rem;
+      font-size: 1rem; color: var(--ink);
+      background: var(--beige);
+      border: 2px solid var(--beige-dark);
+      border-radius: 10px;
+      outline: none;
+      margin-bottom: 0.6rem;
+      transition: border-color 0.15s;
+    }
+    .join-box input:focus { border-color: var(--green-light); }
+    .join-btn {
+      width: 100%; padding: 0.75rem;
+      font-size: 1rem; font-weight: 700;
+      color: #fff;
+      background: linear-gradient(180deg, var(--green-mid), var(--green));
+      border: none; border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(47,107,31,0.3);
+      transition: opacity 0.15s;
+    }
+    .join-btn:active { opacity: 0.85; }
+
+    /* ── Loading spinner ── */
+    .spinner {
+      display: none; text-align: center;
+      padding: 2rem; color: var(--ink-muted);
+    }
+    .spinner.show { display: block; }
+    .spinner::after {
+      content: ""; display: block;
+      width: 2rem; height: 2rem; margin: 0.5rem auto 0;
+      border: 3px solid var(--beige-dark);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Reload hint ── */
+    .reload-hint {
+      text-align: center; margin-top: 1.5rem;
+      font-size: 0.8rem; color: var(--ink-muted);
+    }
+    .reload-hint button {
+      background: none; border: none; color: var(--green);
+      font-weight: 700; cursor: pointer; font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <span class="ball"></span>
+  <h1>Pickle Flow</h1>
+  <p>Tap your name to check in</p>
+</div>
+
+<div class="container">
+
+  <!-- Success card -->
+  <div class="success-card" id="success-card">
+    <div class="success-icon">✅</div>
+    <div class="success-name" id="success-name"></div>
+    <div class="success-msg">You're checked in and ready to play!</div>
+    <div class="success-sub">Your organizer will call you when it's your turn.</div>
+  </div>
+
+  <!-- Error banner -->
+  <div class="error-banner" id="error-banner"></div>
+
+  <!-- Loading -->
+  <div class="spinner" id="spinner"></div>
+
+  <!-- Player list -->
+  <div id="main-content">
+    <div class="section-label">Not yet checked in</div>
+    <div class="player-list" id="player-list"></div>
+
+    <div class="section-label">Not in the queue yet?</div>
+    <div class="join-box">
+      <input type="text" id="join-name" placeholder="Enter your name…" maxlength="24" autocomplete="off" autocorrect="off">
+      <button class="join-btn" onclick="joinAndCheckin()">Join Queue &amp; Check In</button>
+    </div>
+  </div>
+
+  <div class="reload-hint">
+    List not updated? <button onclick="loadPlayers()">Refresh</button>
+  </div>
+
+</div>
+
+<script>
+  const API = '';
+
+  async function loadPlayers() {
+    const spinner  = document.getElementById('spinner');
+    const mainContent = document.getElementById('main-content');
+    const listEl   = document.getElementById('player-list');
+    const errorEl  = document.getElementById('error-banner');
+
+    spinner.classList.add('show');
+    mainContent.style.opacity = '0.4';
+    errorEl.classList.remove('show');
+
+    try {
+      const res  = await fetch(`${API}/api/state`);
+      const data = await res.json();
+      const now  = Date.now() / 1000;
+      const offset = data.server_time ? now - data.server_time : 0;
+
+      // Players not yet checked in
+      const pending = (data.queue || []).filter(p => !p.checked_in);
+
+      listEl.innerHTML = '';
+      if (!pending.length) {
+        listEl.innerHTML = `
+          <div class="empty">
+            <div class="emoji">🎉</div>
+            <div>Everyone is checked in!</div>
+          </div>`;
+      } else {
+        pending.forEach(p => {
+          const btn = document.createElement('button');
+          btn.className = 'player-btn';
+
+          // Wait time if available
+          const joinTs = data.queue_join_times && data.queue_join_times[String(p.id)];
+          const waitHtml = joinTs
+            ? `<span class="wait">Waiting ${fmtWait(now - offset - joinTs)}</span>`
+            : '';
+
+          btn.innerHTML = `
+            <span>
+              <span>${esc(p.name)}</span>
+              ${waitHtml}
+            </span>
+            <span class="badge">Check In</span>`;
+          btn.onclick = () => doCheckin(p.id, p.name);
+          listEl.appendChild(btn);
+        });
+      }
+    } catch(e) {
+      showError('Could not load players. Make sure you are connected to the same network.');
+    } finally {
+      spinner.classList.remove('show');
+      mainContent.style.opacity = '1';
+    }
+  }
+
+  async function doCheckin(playerId, playerName) {
+    hideError();
+    try {
+      const res  = await fetch(`${API}/api/checkin/${playerId}`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) { showError(data.error || 'Check-in failed.'); return; }
+      showSuccess(playerName);
+    } catch(e) {
+      showError('Network error. Please try again.');
+    }
+  }
+
+  async function joinAndCheckin() {
+    const input = document.getElementById('join-name');
+    const name  = input.value.trim();
+    if (!name) { input.focus(); return; }
+    hideError();
+
+    try {
+      // Join the queue first
+      const joinRes  = await fetch(`${API}/api/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      const joinData = await joinRes.json();
+      if (!joinRes.ok) { showError(joinData.error || 'Could not join queue.'); return; }
+
+      // Find the newly-added player and check them in
+      const newPlayer = (joinData.queue || []).find(p => p.name.toLowerCase() === name.toLowerCase());
+      if (newPlayer) {
+        await fetch(`${API}/api/checkin/${newPlayer.id}`, { method: 'POST' });
+      }
+      showSuccess(name);
+    } catch(e) {
+      showError('Network error. Please try again.');
+    }
+  }
+
+  function showSuccess(name) {
+    document.getElementById('success-card').classList.add('show');
+    document.getElementById('success-name').textContent = name;
+    document.getElementById('main-content').style.display = 'none';
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-banner');
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+
+  function hideError() {
+    document.getElementById('error-banner').classList.remove('show');
+  }
+
+  function fmtWait(secs) {
+    const m = Math.floor(Math.abs(secs) / 60);
+    const s = Math.floor(Math.abs(secs) % 60);
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+      ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
+  // Load on page open
+  loadPlayers();
+</script>
+</body>
+</html>
